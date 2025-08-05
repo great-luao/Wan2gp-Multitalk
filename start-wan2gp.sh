@@ -62,8 +62,8 @@ echo "✅ Nginx proxy configured successfully"
 echo "🌐 External access via port 7862 → Internal Gradio on port 7860"
 
 # Make sure the code is up to date
-git checkout docker
-git pull
+# git checkout docker
+# git pull
 
 # Start our application in the background
 echo "Starting Wan2gp-Multitalk application in background..."
