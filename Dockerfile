@@ -19,9 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Clone the application source code to a "safe" location that won't be volume-mounted.
-RUN git clone https://github.com/deepbeepmeep/Wan2GP.git /opt/wan2gp_source \
+RUN git clone https://github.com/great-luao/Wan2gp-Multitalk.git /opt/wan2gp_source \
     && cd /opt/wan2gp_source \
-    && git checkout 6850d60caa0edddeed922d56e8297bd955eb5dfb
+    && git checkout docker
 
 # Install Python dependencies from the source code.
 # The GitHub Actions workflow is configured to maximize build space, so we can
@@ -31,12 +31,16 @@ RUN sed -i -e 's/^torch>=/#torch>=/' -e 's/^torchvision>=/#torchvision>=/' /opt/
     && python3 -m pip install --no-cache-dir gradio==5.35.0 sageattention==1.0.6 \
     && rm -rf /root/.cache/pip
 
+# Configure Warp terminal integration
+RUN echo 'printf '"'"'\eP$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "bash"}}\x9c'"'"'' >> ~/.bashrc \
+    && echo "Warp terminal integration configured"
+
 # Copy and set up our startup script
 COPY start-wan2gp.sh /usr/local/bin/start-wan2gp.sh
 RUN chmod +x /usr/local/bin/start-wan2gp.sh
 
-# Expose ports for authenticated Gradio interface and Jupyter Lab
+# Expose ports for nginx proxy and Jupyter Lab
 EXPOSE 7862 8888
 
 # Use our startup script as the main command
-CMD ["/usr/local/bin/start-wan2gp.sh"] 
+CMD ["/usr/local/bin/start-wan2gp.sh"]

@@ -18,70 +18,78 @@ from wan.multitalk.multitalk import (
     get_full_audio_embeddings, 
     get_window_audio_embeddings,
     parse_speakers_locations,
-    get_target_masks,
-    process_tts_single,
-    process_tts_multi
+    get_target_masks
 )
 
-# 检查是否需要导入 Kokoro（如果使用 TTS）
-try:
-    from wan.multitalk.kokoro import KPipeline
-except ImportError:
-    print("警告: Kokoro TTS 模块未找到，TTS 功能可能不可用")
-    KPipeline = None
+# 图像处理相关导入
+from PIL import Image
 
 # 全局变量
 wan_model = None
 current_model_type = None
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def load_multitalk_model(model_path="ckpts/multitalk-wan2gp-14B.pth", high_vram_mode=False):
+def load_multitalk_model(model_type="multitalk", high_vram_mode=False):
     """加载 MultiTalk 模型
     
     Args:
-        model_path: 模型文件路径
+        model_type: 模型类型，默认为"multitalk"
         high_vram_mode: 是否使用高 VRAM 模式（优化速度和质量）
     """
     global wan_model, current_model_type
     
+    # 根据VRAM模式选择模型文件名（根据原版逻辑）
+    if model_type == "multitalk":
+        if high_vram_mode:
+            # 高VRAM模式使用非量化版本
+            model_filename = "wan2.1_image2video_480p_14B_mbf16.safetensors"
+        else:
+            # 标准模式使用量化版本  
+            model_filename = "wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors"
+    else:
+        return f"❌ 不支持的模型类型: {model_type}"
+    
     # 检查模型文件是否存在
-    if not os.path.exists(model_path):
-        return f"❌ 模型文件不存在: {model_path}"
+    full_model_path = f"ckpts/{model_filename}"
+    if not os.path.exists(full_model_path):
+        return f"❌ 模型文件不存在: {full_model_path}\n请确保已下载模型文件到ckpts目录"
     
     try:
-        print(f"正在加载模型: {model_path}")
+        print(f"正在加载模型: {model_filename}")
         print(f"高 VRAM 模式: {'开启' if high_vram_mode else '关闭'}")
         # 使用 i2v 配置，因为 multitalk 需要 i2v 模式
         cfg = WAN_CONFIGS['i2v-14B']
-        current_model_type = "multitalk"
+        current_model_type = model_type
         
         # 根据 VRAM 模式选择数据类型
         if high_vram_mode:
             # 高 VRAM 模式：使用更高精度，不量化
             dtype = torch.float16 if not torch.cuda.is_bf16_supported() else torch.bfloat16
             VAE_dtype = torch.float32
-            quantize = False
+            quantizeTransformer = False
         else:
             # 标准模式：使用量化以节省 VRAM
             dtype = torch.bfloat16
             VAE_dtype = torch.float32
-            quantize = True
+            quantizeTransformer = True
         
-        # 初始化模型
-        # 如果 model_path 是单个文件，需要转换为列表
-        if isinstance(model_path, str):
-            model_filename = [model_path]
-        else:
-            model_filename = model_path
-            
+        # 创建临时的模型定义，模拟原版的配置方式
+        temp_model_def = {
+            "name": "MultiTalk Model",
+            "architecture": "multitalk", 
+            "modules": ["multitalk"],
+            "auto_quantize": not high_vram_mode
+        }
+        
         wan_model = WanAny2V(
             config=cfg,
             checkpoint_dir="ckpts",
-            model_filename=model_filename,  # 需要是列表格式
-            model_type="multitalk",
+            model_filename=[model_filename],  # 需要是列表格式，只传文件名
+            model_type=model_type,
+            model_def=temp_model_def,  # 添加模型定义
             base_model_type="wan_i2v_14B",
             text_encoder_filename=None,  # 使用默认
-            quantizeTransformer=quantize,  # 根据模式决定是否量化
+            quantizeTransformer=quantizeTransformer,  # 根据模式决定是否量化
             dtype=dtype,
             VAE_dtype=VAE_dtype,
             mixed_precision_transformer=False  # 高 VRAM 模式可以禁用混合精度
@@ -95,13 +103,13 @@ def generate_multitalk_video(
     # 基础参数
     prompt,
     negative_prompt,
+    # 生成模式
+    generation_mode,
+    # 图像输入（图生视频模式）
+    input_image,
     # 音频参数
-    audio_source_type,
     audio_file1,
     audio_file2,
-    tts_text,
-    tts_voice1,
-    tts_voice2,
     speakers_locations,
     audio_combination_type,
     # 视频参数
@@ -135,41 +143,29 @@ def generate_multitalk_video(
         temp_dir = f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         os.makedirs(temp_dir, exist_ok=True)
         
-        if audio_source_type == "上传音频":
-            # 使用上传的音频文件
-            audio_path1 = audio_file1.name if audio_file1 else None
-            audio_path2 = audio_file2.name if audio_file2 else None
-            sum_audio_path = None
-        elif audio_source_type == "TTS生成":
-            # 使用 TTS 生成音频
-            if not tts_text:
-                return None, "请输入 TTS 文本"
-            
-            # 检查是否为多说话人模式
-            if "(s1)" in tts_text and "(s2)" in tts_text:
-                # 多说话人 TTS
-                if not tts_voice1 or not tts_voice2:
-                    return None, "多说话人模式需要提供两个语音文件"
-                if KPipeline is None:
-                    return None, "TTS 功能不可用，请安装 Kokoro 模块"
-                audio1, audio2, sum_audio_path = process_tts_multi(
-                    tts_text, temp_dir, tts_voice1.name, tts_voice2.name
-                )
-                audio_path1 = f"{temp_dir}/s1.wav"
-                audio_path2 = f"{temp_dir}/s2.wav"
+        # 使用上传的音频文件
+        audio_path1 = audio_file1.name if audio_file1 else None
+        audio_path2 = audio_file2.name if audio_file2 else None
+        sum_audio_path = None
+        
+        # 验证音频输入
+        if not audio_path1:
+            return None, "请至少上传一个音频文件"
+        
+        # 处理图像输入（如果是图生视频模式）
+        image_guide_path = None
+        if generation_mode == "图生视频":
+            if input_image is None:
+                return None, "图生视频模式需要上传图像"
+            # 保存上传的图像
+            image_guide_path = os.path.join(temp_dir, "input_image.png")
+            if hasattr(input_image, 'name'):
+                # 如果是文件对象
+                import shutil
+                shutil.copy(input_image.name, image_guide_path)
             else:
-                # 单说话人 TTS
-                if not tts_voice1:
-                    return None, "请提供语音文件"
-                if KPipeline is None:
-                    return None, "TTS 功能不可用，请安装 Kokoro 模块"
-                audio1, audio_path1 = process_tts_single(
-                    tts_text, temp_dir, tts_voice1.name
-                )
-                audio_path2 = None
-                sum_audio_path = audio_path1
-        else:
-            return None, "无效的音频源类型"
+                # 如果是PIL图像
+                input_image.save(image_guide_path)
         
         # 解析说话人位置
         speakers_bboxes, error = parse_speakers_locations(speakers_locations)
@@ -239,6 +235,7 @@ def generate_multitalk_video(
             audio_proj=audio_proj,
             speakers_bboxes=speakers_bboxes,
             token_ref_target_masks=token_ref_target_masks,  # 添加目标掩码
+            image_guide=image_guide_path,  # 图像输入路径
             model_type="multitalk",
             sample_solver="unipc",
             VAE_tile_size=VAE_tile_size,  # 添加 VAE 瓦片化参数
@@ -313,10 +310,11 @@ def create_ui():
                 # 模型加载
                 with gr.Group():
                     gr.Markdown("### 📦 模型设置")
-                    model_path = gr.Textbox(
-                        label="模型路径",
-                        value="ckpts/multitalk-wan2gp-14B.pth",
-                        placeholder="输入模型文件路径"
+                    model_type_choice = gr.Dropdown(
+                        choices=["multitalk"],
+                        value="multitalk",
+                        label="模型类型",
+                        info="选择要使用的MultiTalk模型类型"
                     )
                     high_vram_mode = gr.Checkbox(
                         label="高 VRAM 模式（24GB+）",
@@ -324,10 +322,38 @@ def create_ui():
                         info="禁用量化，使用更高精度，提升速度和质量"
                     )
                     load_btn = gr.Button("加载模型", variant="primary")
+                    
+                    # 显示当前将使用的模型文件
+                    def get_model_info(high_vram):
+                        if high_vram:
+                            filename = "wan2.1_image2video_480p_14B_mbf16.safetensors"
+                            mode = "高精度模式（无量化）"
+                        else:
+                            filename = "wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors" 
+                            mode = "标准模式（量化）"
+                        return f"将使用: {filename}\n模式: {mode}"
+                    
+                    model_info = gr.Textbox(
+                        label="模型信息",
+                        value=get_model_info(False),
+                        interactive=False,
+                        lines=2
+                    )
+                    
+                    high_vram_mode.change(
+                        get_model_info,
+                        inputs=[high_vram_mode],
+                        outputs=[model_info]
+                    )
                 
                 # 基础参数
                 with gr.Group():
                     gr.Markdown("### 🎬 基础参数")
+                    generation_mode = gr.Radio(
+                        choices=["文生视频", "图生视频"],
+                        value="文生视频",
+                        label="生成模式"
+                    )
                     prompt = gr.Textbox(
                         label="提示词",
                         placeholder="描述你想要生成的场景...",
@@ -338,31 +364,21 @@ def create_ui():
                         placeholder="不想要出现的内容...",
                         lines=2
                     )
+                    
+                    # 图像输入（图生视频模式）
+                    with gr.Group(visible=False) as image_input_group:
+                        input_image = gr.Image(
+                            label="输入图像",
+                            type="pil",
+                            info="上传一张图像作为视频生成的起始帧"
+                        )
                 
                 # 音频设置
                 with gr.Group():
                     gr.Markdown("### 🎤 音频设置")
                     
-                    audio_source_type = gr.Radio(
-                        choices=["上传音频", "TTS生成"],
-                        value="上传音频",
-                        label="音频源类型"
-                    )
-                    
-                    # 上传音频选项
-                    with gr.Group(visible=True) as upload_audio_group:
-                        audio_file1 = gr.File(label="说话人1音频", file_types=["audio"])
-                        audio_file2 = gr.File(label="说话人2音频（可选）", file_types=["audio"])
-                    
-                    # TTS 选项
-                    with gr.Group(visible=False) as tts_group:
-                        tts_text = gr.Textbox(
-                            label="TTS文本",
-                            placeholder="单说话人: 直接输入文本\n多说话人: (s1)说话人1的话 (s2)说话人2的话",
-                            lines=3
-                        )
-                        tts_voice1 = gr.File(label="说话人1语音模板", file_types=[".pt"])
-                        tts_voice2 = gr.File(label="说话人2语音模板（多说话人时需要）", file_types=[".pt"])
+                    audio_file1 = gr.File(label="说话人1音频", file_types=["audio"])
+                    audio_file2 = gr.File(label="说话人2音频（可选）", file_types=["audio"])
                     
                     speakers_locations = gr.Textbox(
                         label="说话人位置",
@@ -459,39 +475,36 @@ def create_ui():
                 gr.Examples(
                     examples=[
                         [
+                            "文生视频",
                             "Two people having a conversation in a modern office",
                             "blurry, low quality",
-                            "上传音频",
                             "25:75",
                             "add"
                         ],
                         [
+                            "图生视频",
                             "Interview scene with two speakers at a news desk",
                             "cartoon, animated",
-                            "TTS生成",
                             "30:70",
                             "add"
                         ]
                     ],
-                    inputs=[prompt, negative_prompt, audio_source_type, speakers_locations, audio_combination_type]
+                    inputs=[generation_mode, prompt, negative_prompt, speakers_locations, audio_combination_type]
                 )
         
         # 事件处理
-        def toggle_audio_input(audio_type):
-            return (
-                gr.update(visible=(audio_type == "上传音频")),
-                gr.update(visible=(audio_type == "TTS生成"))
-            )
+        def toggle_generation_mode(mode):
+            return gr.update(visible=(mode == "图生视频"))
         
-        audio_source_type.change(
-            toggle_audio_input,
-            inputs=[audio_source_type],
-            outputs=[upload_audio_group, tts_group]
+        generation_mode.change(
+            toggle_generation_mode,
+            inputs=[generation_mode],
+            outputs=[image_input_group]
         )
         
         load_btn.click(
             load_multitalk_model,
-            inputs=[model_path, high_vram_mode],
+            inputs=[model_type_choice, high_vram_mode],
             outputs=[status_text]
         )
         
@@ -499,8 +512,8 @@ def create_ui():
             generate_multitalk_video,
             inputs=[
                 prompt, negative_prompt,
-                audio_source_type, audio_file1, audio_file2,
-                tts_text, tts_voice1, tts_voice2,
+                generation_mode, input_image,
+                audio_file1, audio_file2,
                 speakers_locations, audio_combination_type,
                 resolution, video_length, fps,
                 seed, num_inference_steps, guidance_scale,

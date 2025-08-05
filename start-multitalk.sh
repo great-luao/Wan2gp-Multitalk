@@ -13,33 +13,77 @@ else
     echo "Application files already present"
 fi
 
-# Add Warp terminal integration if not already present
-if ! grep -q "SourcedRcFileForWarp" ~/.bashrc 2>/dev/null; then
-    echo "Adding Warp terminal integration to ~/.bashrc..."
-    echo 'printf '"'"'\eP$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "bash"}}\x9c'"'"'' >> ~/.bashrc
-    echo "Warp terminal integration added"
-fi
-
 # Change to application directory
 cd /workspace/Wan2gp-Multitalk
+# Make sure the code is up to date
+git checkout docker
+git pull
 
 # Check necessary directories
 echo "📁 Checking directory structure..."
 mkdir -p ckpts
-mkdir -p weights
 mkdir -p output
-mkdir -p temp
 
 # Check model files
-if [ ! -f "ckpts/multitalk-wan2gp-14B.pth" ]; then
-    echo "⚠️  WARNING: MultiTalk model file not found"
-    echo "Please place model file at: ckpts/multitalk-wan2gp-14B.pth"
+echo "🔍 Checking MultiTalk model files..."
+MULTITALK_QUANTIZED="ckpts/wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors"
+I2V_MODEL="ckpts/wan2.1_image2video_480p_14B_mbf16.safetensors"
+VAE_MODEL="ckpts/Wan2.1_VAE.safetensors"
+
+if [ ! -f "$MULTITALK_QUANTIZED" ]; then
+    echo "⚠️  WARNING: MultiTalk quantized model not found"
+    echo "Please place model file at: $MULTITALK_QUANTIZED"
+else
+    echo "✅ MultiTalk quantized model found"
+fi
+
+if [ ! -f "$I2V_MODEL" ]; then
+    echo "⚠️  WARNING: I2V base model not found (needed for high VRAM mode)"
+    echo "Please place model file at: $I2V_MODEL"
+else
+    echo "✅ I2V base model found"
+fi
+
+if [ ! -f "$VAE_MODEL" ]; then
+    echo "⚠️  WARNING: VAE model not found"
+    echo "Please place model file at: $VAE_MODEL"
+else
+    echo "✅ VAE model found"
+fi
+
+# Check MultiTalk module file
+MULTITALK_MODULE="ckpts/fantasy_proj_model.safetensors"
+if [ ! -f "$MULTITALK_MODULE" ]; then
+    echo "⚠️  WARNING: MultiTalk module not found"
+    echo "Please place model file at: $MULTITALK_MODULE"
+else
+    echo "✅ MultiTalk module found"
 fi
 
 # Check Wav2Vec2 model
 if [ ! -d "ckpts/chinese-wav2vec2-base" ] && [ ! -d "ckpts/wav2vec" ]; then
     echo "⚠️  WARNING: Wav2Vec2 model not found"
     echo "Please place Wav2Vec2 model at: ckpts/chinese-wav2vec2-base or ckpts/wav2vec"
+else
+    echo "✅ Wav2Vec2 model found"
+fi
+
+# Check text encoder models
+TEXT_ENCODER_DIR="ckpts/umt5-xxl"
+XLM_ROBERTA_DIR="ckpts/xlm-roberta-large"
+
+if [ ! -d "$TEXT_ENCODER_DIR" ]; then
+    echo "⚠️  WARNING: UMT5 text encoder not found"
+    echo "Please place text encoder at: $TEXT_ENCODER_DIR"
+else
+    echo "✅ UMT5 text encoder found"
+fi
+
+if [ ! -d "$XLM_ROBERTA_DIR" ]; then
+    echo "⚠️  WARNING: XLM-RoBERTa encoder not found"
+    echo "Please place encoder at: $XLM_ROBERTA_DIR"
+else
+    echo "✅ XLM-RoBERTa encoder found"
 fi
 
 # Set environment variables
