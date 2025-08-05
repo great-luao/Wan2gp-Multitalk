@@ -215,6 +215,7 @@ def generate_multitalk_video(
             audio_cfg_scale=audio_guidance_scale,
             audio_proj=audio_proj,
             speakers_bboxes=speakers_bboxes,
+            token_ref_target_masks=token_ref_target_masks,  # 添加目标掩码
             model_type="multitalk",
             sample_solver="unipc",
             VAE_tile_size=VAE_tile_size,  # 添加 VAE 瓦片化参数
@@ -488,11 +489,21 @@ def create_ui():
     return app
 
 if __name__ == "__main__":
+    import argparse
+    
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description="MultiTalk 精简版")
+    parser.add_argument("--server-name", type=str, default="0.0.0.0", help="服务器地址")
+    parser.add_argument("--server-port", type=int, default=7860, help="服务器端口")
+    parser.add_argument("--share", action="store_true", help="是否创建公共链接")
+    parser.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
+    args = parser.parse_args()
+    
     # 创建并启动应用
     app = create_ui()
     app.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        share=False,
-        inbrowser=True
+        server_name=args.server_name,
+        server_port=args.server_port,
+        share=args.share,
+        inbrowser=not args.no_browser
     )
