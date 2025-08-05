@@ -28,14 +28,31 @@ wan_model = None
 current_model_type = None
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def load_multitalk_model(model_path="ckpts/multitalk-wan2gp-14B.pth"):
-    """加载 MultiTalk 模型"""
+def load_multitalk_model(model_path="ckpts/multitalk-wan2gp-14B.pth", high_vram_mode=False):
+    """加载 MultiTalk 模型
+    
+    Args:
+        model_path: 模型文件路径
+        high_vram_mode: 是否使用高 VRAM 模式（优化速度和质量）
+    """
     global wan_model, current_model_type
     
     try:
         # 使用 i2v 配置，因为 multitalk 需要 i2v 模式
         cfg = WAN_CONFIGS['i2v-14B']
         current_model_type = "multitalk"
+        
+        # 根据 VRAM 模式选择数据类型
+        if high_vram_mode:
+            # 高 VRAM 模式：使用更高精度，不量化
+            dtype = torch.float16 if not torch.cuda.is_bf16_supported() else torch.bfloat16
+            VAE_dtype = torch.float32
+            quantize = False
+        else:
+            # 标准模式：使用量化以节省 VRAM
+            dtype = torch.bfloat16
+            VAE_dtype = torch.float32
+            quantize = True
         
         # 初始化模型
         wan_model = WanAny2V(
@@ -45,8 +62,10 @@ def load_multitalk_model(model_path="ckpts/multitalk-wan2gp-14B.pth"):
             model_type="multitalk",
             base_model_type="wan_i2v_14B",
             text_encoder_filename=None,  # 使用默认
-            dtype=torch.bfloat16,
-            VAE_dtype=torch.float32
+            quantizeTransformer=quantize,  # 根据模式决定是否量化
+            dtype=dtype,
+            VAE_dtype=VAE_dtype,
+            mixed_precision_transformer=False  # 高 VRAM 模式可以禁用混合精度
         )
         
         return "✅ MultiTalk 模型加载成功"
@@ -164,8 +183,18 @@ def generate_multitalk_video(
             bbox=speakers_bboxes
         )
         
+        # 根据设备 VRAM 自动选择 VAE tile size
+        device_mem_capacity = torch.cuda.get_device_properties(0).total_memory / 1048576
+        if device_mem_capacity >= 24000:  # 24GB+
+            VAE_tile_size = 0  # 不使用瓦片化，最快
+        elif device_mem_capacity >= 12000:  # 12GB+
+            VAE_tile_size = 256
+        else:
+            VAE_tile_size = 128
+        
         # 调用模型生成视频
         print(f"开始生成视频: {width}x{height}, {video_length}帧")
+        print(f"设备 VRAM: {device_mem_capacity:.0f}MB, VAE Tile Size: {VAE_tile_size}")
         
         # 创建回调函数用于显示进度
         def progress_callback(step, total_steps, latents):
@@ -188,6 +217,8 @@ def generate_multitalk_video(
             speakers_bboxes=speakers_bboxes,
             model_type="multitalk",
             sample_solver="unipc",
+            VAE_tile_size=VAE_tile_size,  # 添加 VAE 瓦片化参数
+            joint_pass=device_mem_capacity >= 16000,  # 16GB+ 启用 joint pass 优化
             callback=progress_callback if num_inference_steps > 10 else None
         )
         
@@ -262,6 +293,11 @@ def create_ui():
                         label="模型路径",
                         value="ckpts/multitalk-wan2gp-14B.pth",
                         placeholder="输入模型文件路径"
+                    )
+                    high_vram_mode = gr.Checkbox(
+                        label="高 VRAM 模式（24GB+）",
+                        value=False,
+                        info="禁用量化，使用更高精度，提升速度和质量"
                     )
                     load_btn = gr.Button("加载模型", variant="primary")
                 
@@ -379,6 +415,14 @@ def create_ui():
                         step=0.5,
                         label="音频引导强度"
                     )
+                    
+                    # VRAM 优化提示
+                    gr.Markdown("""
+                    #### 💡 性能优化建议
+                    - **8GB VRAM**: 使用 512x288 分辨率，49 帧
+                    - **12GB VRAM**: 使用 768x432 分辨率，81 帧
+                    - **24GB+ VRAM**: 启用高 VRAM 模式，使用 1280x720，129 帧
+                    """)
             
             # 右侧：输出区域
             with gr.Column(scale=1):
@@ -423,7 +467,7 @@ def create_ui():
         
         load_btn.click(
             load_multitalk_model,
-            inputs=[model_path],
+            inputs=[model_path, high_vram_mode],
             outputs=[status_text]
         )
         
