@@ -13,6 +13,13 @@ else
     echo "Application files already present"
 fi
 
+# Add Warp terminal integration if not already present
+if ! grep -q "SourcedRcFileForWarp" ~/.bashrc 2>/dev/null; then
+    echo "Adding Warp terminal integration to ~/.bashrc..."
+    echo 'printf '"'"'\eP$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "bash"}}\x9c'"'"'' >> ~/.bashrc
+    echo "Warp terminal integration added"
+fi
+
 # Set up nginx authentication using RunPod's existing infrastructure
 echo "Setting up authentication..."
 PASSWORD=${WAN2GP_PASSWORD:-"gpuPoor2025"}
