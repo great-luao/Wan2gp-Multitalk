@@ -20,12 +20,6 @@ if ! grep -q "SourcedRcFileForWarp" ~/.bashrc 2>/dev/null; then
     echo "Warp terminal integration added"
 fi
 
-# Check Python environment
-if ! command -v python3 &> /dev/null; then
-    echo "❌ ERROR: Python3 not found"
-    exit 1
-fi
-
 # Change to application directory
 cd /workspace/Wan2gp-Multitalk
 
@@ -48,12 +42,6 @@ if [ ! -d "ckpts/chinese-wav2vec2-base" ] && [ ! -d "ckpts/wav2vec" ]; then
     echo "Please place Wav2Vec2 model at: ckpts/chinese-wav2vec2-base or ckpts/wav2vec"
 fi
 
-# Check Kokoro TTS model (if using TTS)
-if [ ! -d "weights/Kokoro-82M" ]; then
-    echo "⚠️  WARNING: Kokoro TTS model not found"
-    echo "If you need TTS functionality, please place model at: weights/Kokoro-82M"
-fi
-
 # Set environment variables
 export CUDA_VISIBLE_DEVICES=0  # Use first GPU, can be modified as needed
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
@@ -61,9 +49,9 @@ export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
 # Start our application in the background
 echo "Starting MultiTalk application in background..."
 
-# Direct access on port 7860
-SERVER_NAME="${SERVER_NAME:-0.0.0.0}"
-SERVER_PORT="${SERVER_PORT:-7860}"
+# Gradio runs on localhost:7860 for nginx to proxy
+SERVER_NAME="127.0.0.1"
+SERVER_PORT="7860"
 
 echo "Starting MultiTalk on $SERVER_NAME:$SERVER_PORT"
 nohup python3 multitalk_app.py --server-name $SERVER_NAME --server-port $SERVER_PORT --no-browser > /workspace/multitalk.log 2>&1 &
