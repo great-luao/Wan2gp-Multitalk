@@ -12,7 +12,7 @@ import traceback
 from datetime import datetime
 
 # 导入核心组件
-from wan import WAN_CONFIGS
+from wan.configs import WAN_CONFIGS  # 修正导入路径
 from wan.any2video import WanAny2V
 from wan.multitalk.multitalk import (
     get_full_audio_embeddings, 
@@ -22,6 +22,13 @@ from wan.multitalk.multitalk import (
     process_tts_single,
     process_tts_multi
 )
+
+# 检查是否需要导入 Kokoro（如果使用 TTS）
+try:
+    from wan.multitalk.kokoro import KPipeline
+except ImportError:
+    print("警告: Kokoro TTS 模块未找到，TTS 功能可能不可用")
+    KPipeline = None
 
 # 全局变量
 wan_model = None
@@ -37,7 +44,13 @@ def load_multitalk_model(model_path="ckpts/multitalk-wan2gp-14B.pth", high_vram_
     """
     global wan_model, current_model_type
     
+    # 检查模型文件是否存在
+    if not os.path.exists(model_path):
+        return f"❌ 模型文件不存在: {model_path}"
+    
     try:
+        print(f"正在加载模型: {model_path}")
+        print(f"高 VRAM 模式: {'开启' if high_vram_mode else '关闭'}")
         # 使用 i2v 配置，因为 multitalk 需要 i2v 模式
         cfg = WAN_CONFIGS['i2v-14B']
         current_model_type = "multitalk"
@@ -55,10 +68,16 @@ def load_multitalk_model(model_path="ckpts/multitalk-wan2gp-14B.pth", high_vram_
             quantize = True
         
         # 初始化模型
+        # 如果 model_path 是单个文件，需要转换为列表
+        if isinstance(model_path, str):
+            model_filename = [model_path]
+        else:
+            model_filename = model_path
+            
         wan_model = WanAny2V(
             config=cfg,
             checkpoint_dir="ckpts",
-            model_filename=model_path,
+            model_filename=model_filename,  # 需要是列表格式
             model_type="multitalk",
             base_model_type="wan_i2v_14B",
             text_encoder_filename=None,  # 使用默认
@@ -131,6 +150,8 @@ def generate_multitalk_video(
                 # 多说话人 TTS
                 if not tts_voice1 or not tts_voice2:
                     return None, "多说话人模式需要提供两个语音文件"
+                if KPipeline is None:
+                    return None, "TTS 功能不可用，请安装 Kokoro 模块"
                 audio1, audio2, sum_audio_path = process_tts_multi(
                     tts_text, temp_dir, tts_voice1.name, tts_voice2.name
                 )
@@ -140,6 +161,8 @@ def generate_multitalk_video(
                 # 单说话人 TTS
                 if not tts_voice1:
                     return None, "请提供语音文件"
+                if KPipeline is None:
+                    return None, "TTS 功能不可用，请安装 Kokoro 模块"
                 audio1, audio_path1 = process_tts_single(
                     tts_text, temp_dir, tts_voice1.name
                 )
