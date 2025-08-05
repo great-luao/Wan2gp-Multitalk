@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Clone the application source code to a "safe" location that won't be volume-mounted.
 RUN git clone https://github.com/great-luao/Wan2gp-Multitalk.git /opt/wan2gp_source \
     && cd /opt/wan2gp_source \
-    && git checkout docker
+    && git checkout 9a26c4d3829d1ff0ce48a86af4cfefdc46b0baee
 
 # Install Python dependencies from the source code.
 # The GitHub Actions workflow is configured to maximize build space, so we can
@@ -40,7 +40,7 @@ COPY start-wan2gp.sh /usr/local/bin/start-wan2gp.sh
 RUN chmod +x /usr/local/bin/start-wan2gp.sh
 
 # Expose ports for nginx proxy and Jupyter Lab
-EXPOSE 7862 8888
+EXPOSE 7862 8888 7860
 
 # Use our startup script as the main command
 CMD ["/usr/local/bin/start-wan2gp.sh"]

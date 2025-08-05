@@ -21,9 +21,6 @@ from wan.multitalk.multitalk import (
     get_target_masks
 )
 
-# 图像处理相关导入
-from PIL import Image
-
 # 全局变量
 wan_model = None
 current_model_type = None
