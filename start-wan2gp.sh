@@ -62,23 +62,23 @@ echo "✅ Nginx proxy configured successfully"
 echo "🌐 External access via port 7862 → Internal Gradio on port 7860"
 
 # Make sure the code is up to date
-# git checkout docker
-# git pull
+git checkout docker
+git pull
 
-# # Start our application in the background
-# echo "Starting Wan2gp-Multitalk application in background..."
-# cd /workspace/Wan2gp-Multitalk
+# Start our application in the background
+echo "Starting Wan2gp-Multitalk application in background..."
+cd /workspace/Wan2gp-Multitalk
 
-# # Gradio runs on localhost:7860 for nginx to proxy
-# SERVER_NAME="127.0.0.1"
-# SERVER_PORT="7860"
+# Gradio runs on localhost:7860 for nginx to proxy
+SERVER_NAME="127.0.0.1"
+SERVER_PORT="7860"
 
-# echo "Starting Wan2gp-Multitalk on $SERVER_NAME:$SERVER_PORT"
-# nohup python3 wgp.py --server-name $SERVER_NAME --server-port $SERVER_PORT > /workspace/wan2gp.log 2>&1 &
-# echo "Wan2gp-Multitalk started on internal port $SERVER_PORT, logs in /workspace/wan2gp.log"
-# echo ""
-# echo "🚀 Application accessible via RunPod proxy on port 7862"
-# echo ""
+echo "Starting Wan2gp-Multitalk on $SERVER_NAME:$SERVER_PORT"
+nohup python3 wgp.py --server-name $SERVER_NAME --server-port $SERVER_PORT > /workspace/wan2gp.log 2>&1 &
+echo "Wan2gp-Multitalk started on internal port $SERVER_PORT, logs in /workspace/wan2gp.log"
+echo ""
+echo "🚀 Application accessible via RunPod proxy on port 7862"
+echo ""
 
 echo "Starting RunPod services..."
 if [ -f "/start.sh" ]; then
