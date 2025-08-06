@@ -38,13 +38,30 @@ else
     echo "✅ VAE model found"
 fi
 
-# Check MultiTalk module file
+# Check MultiTalk module files
 MULTITALK_MODULE="ckpts/fantasy_proj_model.safetensors"
+VACE_MODULE="ckpts/wan2.1_Vace_14B_module_quanto_mbf16_int8.safetensors"
+MULTITALK_CORE="ckpts/wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors"
+
 if [ ! -f "$MULTITALK_MODULE" ]; then
-    echo "⚠️  WARNING: MultiTalk module not found"
+    echo "⚠️  WARNING: MultiTalk fantasy module not found"
     echo "Please place model file at: $MULTITALK_MODULE"
 else
-    echo "✅ MultiTalk module found"
+    echo "✅ MultiTalk fantasy module found"
+fi
+
+if [ ! -f "$VACE_MODULE" ]; then
+    echo "⚠️  WARNING: Vace 14B module not found"
+    echo "Please place model file at: $VACE_MODULE"
+else
+    echo "✅ Vace 14B module found"
+fi
+
+if [ ! -f "$MULTITALK_CORE" ]; then
+    echo "⚠️  WARNING: MultiTalk 14B core module not found"
+    echo "Please place model file at: $MULTITALK_CORE"
+else
+    echo "✅ MultiTalk 14B core module found"
 fi
 
 # Check Wav2Vec2 model
@@ -56,12 +73,12 @@ else
 fi
 
 # Check text encoder models
-TEXT_ENCODER_DIR="ckpts/umt5-xxl"
+TEXT_ENCODER_FILE="ckpts/umt5-xxl/models_t5_umt5-xxl-enc-quanto_int8.safetensors"
 XLM_ROBERTA_DIR="ckpts/xlm-roberta-large"
 
-if [ ! -d "$TEXT_ENCODER_DIR" ]; then
+if [ ! -f "$TEXT_ENCODER_FILE" ]; then
     echo "⚠️  WARNING: UMT5 text encoder not found"
-    echo "Please place text encoder at: $TEXT_ENCODER_DIR"
+    echo "Please place text encoder at: $TEXT_ENCODER_FILE"
 else
     echo "✅ UMT5 text encoder found"
 fi

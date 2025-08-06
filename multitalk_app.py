@@ -41,10 +41,31 @@ def load_multitalk_model(model_type="vace_multitalk_14B"):
     else:
         return f"❌ 不支持的模型类型: {model_type}"
     
-    # 检查模型文件是否存在
-    full_model_path = f"ckpts/{model_filename}"
-    if not os.path.exists(full_model_path):
-        return f"❌ 模型文件不存在: {full_model_path}\n请确保已下载模型文件到ckpts目录"
+    # 构建完整的模型文件列表并检查是否存在
+    vace_module = "wan2.1_Vace_14B_module_quanto_mbf16_int8.safetensors"
+    multitalk_module = "wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors"
+    fantasy_module = "fantasy_proj_model.safetensors"
+    
+    # 设置文本编码器文件名（根据实际文件结构）
+    text_encoder_file = "ckpts/umt5-xxl/models_t5_umt5-xxl-enc-quanto_int8.safetensors"
+    
+    # 检查所有必需文件
+    required_files = [
+        f"ckpts/{model_filename}",
+        f"ckpts/{vace_module}",
+        f"ckpts/{multitalk_module}",
+        f"ckpts/{fantasy_module}",
+        "ckpts/Wan2.1_VAE.safetensors",
+        text_encoder_file
+    ]
+    
+    missing_files = []
+    for file_path in required_files:
+        if not os.path.exists(file_path):
+            missing_files.append(file_path)
+    
+    if missing_files:
+        return "❌ 以下模型文件不存在:\n" + "\n".join(missing_files) + "\n\n请确保已下载所有模型文件到ckpts目录"
     
     try:
         print(f"正在加载模型: {model_filename}")
@@ -57,17 +78,7 @@ def load_multitalk_model(model_type="vace_multitalk_14B"):
         VAE_dtype = torch.float32
         quantizeTransformer = True  # 使用量化模式
         
-        # 设置文本编码器文件名（根据原版逻辑）
-        def get_wan_text_encoder_filename(quantization):
-            """获取文本编码器文件名"""
-            text_encoder_filename = "ckpts/umt5-xxl/models_t5_umt5-xxl-enc-bf16.safetensors"
-            if quantization == "int8":
-                text_encoder_filename = text_encoder_filename.replace("bf16", "quanto_int8")
-            return text_encoder_filename
-        
-        # 根据量化模式确定文本编码器
-        text_encoder_quantization = "int8" if quantizeTransformer else "bf16"
-        text_encoder_file = get_wan_text_encoder_filename(text_encoder_quantization)
+        # 使用之前已经设置好的文本编码器文件路径（量化版本）
         
         # 创建模型定义，与原版 vace_multitalk_14B.json 一致
         temp_model_def = {
@@ -77,10 +88,18 @@ def load_multitalk_model(model_type="vace_multitalk_14B"):
             "auto_quantize": True
         }
         
+        # 按照原版逻辑：主模型 + 模块列表
+        complete_model_list = [
+            model_filename,     # 主模型
+            vace_module,        # Vace 14B 模块
+            multitalk_module,   # MultiTalk 模块  
+            fantasy_module      # Fantasy 模块
+        ]
+        
         wan_model = WanAny2V(
             config=cfg,
             checkpoint_dir="ckpts",
-            model_filename=[model_filename],  # 需要是列表格式，只传文件名
+            model_filename=complete_model_list,  # 传递完整的模型文件列表
             model_type=model_type,
             model_def=temp_model_def,  # 添加模型定义
             base_model_type="wan_i2v_14B",
@@ -316,9 +335,9 @@ def create_ui():
                     # 显示当前将使用的模型文件
                     model_info = gr.Textbox(
                         label="模型信息",
-                        value="将使用: Wan14BT2VFusioniX_quanto_bf16_int8.safetensors\n模式: Vace+MultiTalk 量化模式",
+                        value="主模型: Wan14BT2VFusioniX_quanto_bf16_int8.safetensors\nVace模块: wan2.1_Vace_14B_module_quanto_mbf16_int8.safetensors\nMultiTalk模块: wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors\nFantasy模块: fantasy_proj_model.safetensors\nVAE: Wan2.1_VAE.safetensors\n文本编码器: umt5-xxl/models_t5_umt5-xxl-enc-quanto_int8.safetensors\n模式: Vace+MultiTalk 量化模式",
                         interactive=False,
-                        lines=2
+                        lines=7
                     )
                 
                 # 基础参数
