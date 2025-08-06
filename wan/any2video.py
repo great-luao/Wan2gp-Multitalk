@@ -71,49 +71,96 @@ class WanAny2V:
         VAE_dtype = torch.float32,
         mixed_precision_transformer = False
     ):
+        # ===== 调试代码：检查checkpoint_dir =====
+        print(f"🔍 DEBUG: checkpoint_dir = {checkpoint_dir}")
+        print(f"🔍 DEBUG: checkpoint_dir exists = {os.path.exists(checkpoint_dir)}")
+        print(f"🔍 DEBUG: current working directory = {os.getcwd()}")
+        if os.path.exists(checkpoint_dir):
+            print(f"🔍 DEBUG: files in checkpoint_dir = {os.listdir(checkpoint_dir)[:10]}")  # 只显示前10个文件
+        else:
+            print(f"❌ ERROR: checkpoint_dir不存在: {checkpoint_dir}")
+        
         self.device = torch.device(f"cuda")
         self.config = config
         self.VAE_dtype = VAE_dtype
         self.dtype = dtype
         self.num_train_timesteps = config.num_train_timesteps
         self.param_dtype = config.param_dtype
+        
+        # ===== 调试代码：检查配置内容 =====
+        print(f"🔍 DEBUG: config attributes:")
+        if hasattr(config, 't5_checkpoint'):
+            print(f"  - t5_checkpoint = {config.t5_checkpoint}")
+        if hasattr(config, 't5_tokenizer'):
+            print(f"  - t5_tokenizer = {config.t5_tokenizer}")
+        if hasattr(config, 'vae_checkpoint'):
+            print(f"  - vae_checkpoint = {config.vae_checkpoint}")
+        if hasattr(config, 'clip_checkpoint'):
+            print(f"  - clip_checkpoint = {config.clip_checkpoint}")
+        if hasattr(config, 'clip_tokenizer'):
+            print(f"  - clip_tokenizer = {config.clip_tokenizer}")
         self.model_def = model_def
         self.model2 = None
         self.transformer_switch = model_def.get("URLs2", None) is not None
+        # ===== 调试代码：检查T5 text encoder文件 =====
+        t5_tokenizer_path = os.path.join(checkpoint_dir, config.t5_tokenizer)
+        print(f"🔍 DEBUG: T5 text_encoder_filename = {text_encoder_filename}")
+        print(f"🔍 DEBUG: T5 text_encoder_filename exists = {text_encoder_filename and os.path.exists(text_encoder_filename)}")
+        print(f"🔍 DEBUG: T5 tokenizer_path = {t5_tokenizer_path}")
+        print(f"🔍 DEBUG: T5 tokenizer_path exists = {os.path.exists(t5_tokenizer_path)}")
+        
         self.text_encoder = T5EncoderModel(
             text_len=config.text_len,
             dtype=config.t5_dtype,
             device=torch.device('cpu'),
             checkpoint_path=text_encoder_filename,
-            tokenizer_path=os.path.join(checkpoint_dir, config.t5_tokenizer),
+            tokenizer_path=t5_tokenizer_path,
             shard_fn= None)
 
         # base_model_type = "i2v2_2"
         if hasattr(config, "clip_checkpoint") and not base_model_type in ["i2v_2_2"]:
+            # ===== 调试代码：检查CLIP文件 =====
+            clip_checkpoint_path = os.path.join(checkpoint_dir, config.clip_checkpoint)
+            clip_tokenizer_path = os.path.join(checkpoint_dir, config.clip_tokenizer)
+            print(f"🔍 DEBUG: CLIP checkpoint_path = {clip_checkpoint_path}")
+            print(f"🔍 DEBUG: CLIP checkpoint_path exists = {os.path.exists(clip_checkpoint_path)}")
+            print(f"🔍 DEBUG: CLIP tokenizer_path = {clip_tokenizer_path}")
+            print(f"🔍 DEBUG: CLIP tokenizer_path exists = {os.path.exists(clip_tokenizer_path)}")
+            
             self.clip = CLIPModel(
                 dtype=config.clip_dtype,
                 device=self.device,
-                checkpoint_path=os.path.join(checkpoint_dir , 
-                                            config.clip_checkpoint),
-                tokenizer_path=os.path.join(checkpoint_dir ,  config.clip_tokenizer))
+                checkpoint_path=clip_checkpoint_path,
+                tokenizer_path=clip_tokenizer_path)
 
         self.vae_stride = config.vae_stride
         self.patch_size = config.patch_size 
         
+        # ===== 调试代码：检查VAE文件 =====
+        vae_path = os.path.join(checkpoint_dir, config.vae_checkpoint)
+        print(f"🔍 DEBUG: VAE path = {vae_path}")
+        print(f"🔍 DEBUG: VAE path exists = {os.path.exists(vae_path)}")
+        
         self.vae = WanVAE(
-            vae_pth=os.path.join(checkpoint_dir, config.vae_checkpoint), dtype= VAE_dtype,
+            vae_pth=vae_path, dtype= VAE_dtype,
             device=self.device)
         
-        # config_filename= "configs/t2v_1.3B.json"
-        # import json
-        # with open(config_filename, 'r', encoding='utf-8') as f:
-        #     config = json.load(f)
-        # sd = safetensors2.torch_load_file(xmodel_filename)
-        # model_filename = "c:/temp/wan2.2i2v/low/diffusion_pytorch_model-00001-of-00006.safetensors"
+        # ===== 调试代码：检查Transformer模型文件 =====
         base_config_file = f"configs/{base_model_type}.json"
         forcedConfigPath = base_config_file if len(model_filename) > 1 else None
-        # forcedConfigPath = base_config_file = f"configs/flf2v_720p.json"
-        # model_filename[1] = xmodel_filename
+        
+        print(f"🔍 DEBUG: base_model_type = {base_model_type}")
+        print(f"🔍 DEBUG: base_config_file = {base_config_file}")
+        print(f"🔍 DEBUG: base_config_file exists = {os.path.exists(base_config_file)}")
+        print(f"🔍 DEBUG: model_filename = {model_filename}")
+        print(f"🔍 DEBUG: transformer_switch = {self.transformer_switch}")
+        
+        if isinstance(model_filename, list):
+            for i, filename in enumerate(model_filename):
+                print(f"🔍 DEBUG: model_filename[{i}] = {filename}")
+                print(f"🔍 DEBUG: model_filename[{i}] exists = {os.path.exists(filename) if filename else False}")
+        else:
+            print(f"🔍 DEBUG: model_filename exists = {os.path.exists(model_filename) if model_filename else False}")
 
         if self.transformer_switch:
             shared_modules= {}

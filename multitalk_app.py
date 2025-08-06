@@ -69,6 +69,17 @@ def load_multitalk_model(model_type="vace_multitalk_14B"):
     
     try:
         print(f"正在加载模型: {model_filename}")
+        
+        # ===== 调试代码：检查基本信息 =====
+        print("🔍 DEBUG: multitalk load_multitalk_model")
+        print(f"  - model_type = {model_type}")
+        print(f"  - current working directory = {os.getcwd()}")
+        print(f"  - model_filename = {model_filename}")
+        print(f"  - vace_module = {vace_module}")
+        print(f"  - multitalk_module = {multitalk_module}")
+        print(f"  - fantasy_module = {fantasy_module}")
+        print(f"  - text_encoder_file = {text_encoder_file}")
+        
         # 使用 i2v 配置，因为 multitalk 需要 i2v 模式
         cfg = WAN_CONFIGS['i2v-14B']
         current_model_type = model_type
@@ -95,6 +106,10 @@ def load_multitalk_model(model_type="vace_multitalk_14B"):
             multitalk_module,   # MultiTalk 模块  
             fantasy_module      # Fantasy 模块
         ]
+        
+        # ===== 调试代码：检查完整模型列表 =====
+        print(f"🔍 DEBUG: complete_model_list = {complete_model_list}")
+        print(f"🔍 DEBUG: temp_model_def = {temp_model_def}")
         
         wan_model = WanAny2V(
             config=cfg,
