@@ -259,8 +259,9 @@ def generate_video():
         start_image = Image.new('RGB', (CONFIG["width"], CONFIG["height"]), color=(0, 0, 0))
         
         # 按照 wgp.py 的方式转换为张量格式 [C, H, W]，范围 [-1, 1]
-        # 确保数据类型为 float32，避免混合数据类型错误
+        # 先创建 float32，然后转换为 bfloat16 以匹配模型期望
         image_start = torch.from_numpy(np.array(start_image).astype(np.float32)).div_(127.5).sub_(1.).movedim(-1, 0)
+        image_start = image_start.to(torch.bfloat16)  # 转换为 bfloat16 匹配模型
         print(f"✅ 起始图像张量已创建: {image_start.shape}, dtype: {image_start.dtype}")
         
         # 创建临时目录用于后续清理
