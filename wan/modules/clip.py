@@ -431,12 +431,9 @@ class XLMRobertaCLIP(nn.Module):
         return groups
 
 
-def _clip(pretrained=False,
-          pretrained_name=None,
+def _clip(pretrained_name=None,
           model_cls=XLMRobertaCLIP,
           return_transforms=False,
-          return_tokenizer=False,
-          tokenizer_padding='eos',
           dtype=torch.float32,
           device='cpu',
           **kwargs):
@@ -470,7 +467,6 @@ def _clip(pretrained=False,
 
 
 def clip_xlm_roberta_vit_h_14(
-        pretrained=False,
         pretrained_name='open-clip-xlm-roberta-large-vit-huge-14',
         **kwargs):
     cfg = dict(
@@ -496,7 +492,7 @@ def clip_xlm_roberta_vit_h_14(
         proj_dropout=0.0,
         embedding_dropout=0.0)
     cfg.update(**kwargs)
-    return _clip(pretrained, pretrained_name, XLMRobertaCLIP, **cfg)
+    return _clip(pretrained_name, XLMRobertaCLIP, **cfg)
 
 
 class CLIPModel:
@@ -512,9 +508,7 @@ class CLIPModel:
 
         with init_empty_weights():
             self.model, self.transforms = clip_xlm_roberta_vit_h_14(
-                pretrained=False,
                 return_transforms=True,
-                return_tokenizer=False,
                 dtype=dtype,
                 device=device)
         self.model = self.model.eval().requires_grad_(False)
@@ -546,7 +540,8 @@ class CLIPModel:
         # forward
         with torch.amp.autocast(dtype=self.dtype, device_type="cuda"):
             # DEBUG: check the dtype of model and videos
-            print(f"CLIP DEBUG: model dtype: {self.model.dtype}")
+            print(f"CLIP DEBUG: model dtype: {self.dtype}")
             print(f"CLIP DEBUG: videos dtype: {videos.dtype}")
+            print(f"CLIP DEBUG: videos device: {videos.device}")
             out = self.model.visual(videos.to(torch.bfloat16), use_31_block=True)
             return out

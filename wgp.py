@@ -2702,6 +2702,25 @@ def load_wan_model(model_filename, model_type, base_model_type, model_def, quant
     else:
         model_factory = wan.WanAny2V
 
+    # Print the parameters of model factory init
+    print("WAN Model Factory Init Parameters:")
+    print("=" * 80)
+    try:
+        print(f"  config: {cfg}")
+        print(f"  model_filename: {model_filename}")
+        print(f"  model_type: {model_type}")
+        print(f"  model_def: {model_def}")
+        print(f"  base_model_type: {base_model_type}")
+        print(f"  text_encoder_filename: {get_wan_text_encoder_filename(text_encoder_quantization)}")
+        print(f"  quantizeTransformer: {quantizeTransformer}")
+        print(f"  dtype: {dtype}")
+        print(f"  VAE_dtype: {VAE_dtype}")
+        print(f"  mixed_precision_transformer: {mixed_precision_transformer}")
+        print(f"  save_quantized: {save_quantized}")
+    except Exception as e:
+        print(f"Error while printing parameters: {e}")
+    print("=" * 80)
+
     wan_model = model_factory(
         config=cfg,
         checkpoint_dir="ckpts",
