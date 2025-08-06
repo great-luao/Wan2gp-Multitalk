@@ -82,58 +82,77 @@ def load_multitalk_model():
     
     print("正在加载原版 MultiTalk 480p 模型...")
     
-    # 原版multitalk使用的模型文件（单个主模型文件）
+    # 原版multitalk使用的模型文件（根据原版参数修正）
     model_files = {
-        "主模型": "wan2.1_image2video_480p_14B_quanto_mbf16_int8.safetensors",  # 原版multitalk模型文件
+        "主模型": "wan2.1_image2video_480p_14B_quanto_mbf16_int8.safetensors",
+        "MultiTalk模块": "wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors",  # 新增MultiTalk模块
         "VAE": "Wan2.1_VAE.safetensors",
     }
     
     text_encoder_file = "ckpts/umt5-xxl/models_t5_umt5-xxl-enc-quanto_int8.safetensors"
     
-    # 检查文件是否存在
+    # 检查所有必需文件是否存在
     missing_files = []
-    for name, filename in model_files.items():
-        file_path = f"ckpts/{filename}"
-        if not os.path.exists(file_path):
-            missing_files.append(f"{name}: {file_path}")
     
+    # 检查主要模型文件
+    for name, filename in model_files.items():
+        if name != "VAE":  # VAE文件后面单独检查
+            file_path = f"ckpts/{filename}"
+            if not os.path.exists(file_path):
+                missing_files.append(f"{name}: {file_path}")
+    
+    # 检查文本编码器
     if not os.path.exists(text_encoder_file):
         missing_files.append(f"文本编码器: {text_encoder_file}")
+    
+    # 检查VAE文件
+    vae_path = f"ckpts/{model_files['VAE']}"
+    if not os.path.exists(vae_path):
+        missing_files.append(f"VAE: {vae_path}")
     
     if missing_files:
         print("❌ 以下模型文件不存在:")
         for missing in missing_files:
             print(f"  - {missing}")
+        print("\n请确保下载了正确的原版MultiTalk模型文件：")
+        print("  1. wan2.1_image2video_480p_14B_quanto_mbf16_int8.safetensors")
+        print("  2. wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors")
         return False
     
     try:
         # 使用 i2v 配置但需要添加 multitalk_output_dim
         cfg = WAN_CONFIGS['i2v-14B']
         
-        # 模型文件（原版multitalk只需要一个主模型文件）
-        model_filename = f"ckpts/{model_files['主模型']}"
+        # 模型文件（根据原版参数：使用两个文件）
+        model_filename = [
+            f"ckpts/{model_files['主模型']}",
+            f"ckpts/{model_files['MultiTalk模块']}"
+        ]
         
-        # 模型定义 - 原版multitalk配置
+        # 模型定义 - 完全匹配原版配置
         temp_model_def = {
-            "name": "MultiTalk 480p",
+            "name": "Multitalk 480p",
             "architecture": "multitalk", 
-            "modules": [],  # 原版multitalk没有额外模块
-            "multitalk_output_dim": 768,  # 这个参数启用multitalk功能
-            "auto_quantize": True
+            "modules": ["multitalk"],  # 原版有multitalk模块
+            "description": "The Multitalk model corresponds to the original Wan image 2 video model combined with the Multitalk module. It lets you have up to two people have a conversation.",
+            "URLs": "i2v",
+            "teacache_coefficients": [-302.33167, 223.948934, -52.546397, 5.8734844, -0.201973289],
+            "path": "defaults/multitalk.json",
+            "settings": {}
         }
         
-        # 创建模型
+        # 创建模型 - 完全匹配原版参数
         wan_model = WanAny2V(
             config=cfg,
             checkpoint_dir="ckpts",
-            model_filename=[model_filename],  # 单个模型文件
+            model_filename=model_filename,  # 两个模型文件
             model_type=CONFIG["model_type"],
             model_def=temp_model_def,
             base_model_type="multitalk",  # 使用原版multitalk
             text_encoder_filename=text_encoder_file,
             quantizeTransformer=False,  # 模型已经量化
             dtype=torch.bfloat16,
-            VAE_dtype=torch.float32,
+            VAE_dtype=torch.float16,  # 原版使用float16，不是float32！
             mixed_precision_transformer=False
         )
         
@@ -254,6 +273,8 @@ def generate_video():
         image_start = torch.from_numpy(np.array(start_image).astype(np.float32)).div_(127.5).sub_(1.).movedim(-1, 0)
         # image_start = image_start.to(torch.bfloat16)  # 转换为 bfloat16 匹配模型
         print(f"✅ 起始图像张量已创建: {image_start.shape}, dtype: {image_start.dtype}")
+        # put image_start to gpu
+        # image_start = image_start.to(device)
         
         # 创建临时目录用于后续清理
         temp_dir = f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
