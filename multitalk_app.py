@@ -26,23 +26,18 @@ wan_model = None
 current_model_type = None
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def load_multitalk_model(model_type="multitalk", high_vram_mode=False):
+def load_multitalk_model(model_type="vace_multitalk_14B"):
     """加载 MultiTalk 模型
     
     Args:
-        model_type: 模型类型，默认为"multitalk"
-        high_vram_mode: 是否使用高 VRAM 模式（优化速度和质量）
+        model_type: 模型类型，默认为"vace_multitalk_14B"（与原版wgp.py一致）
     """
     global wan_model, current_model_type
     
-    # 根据VRAM模式选择模型文件名（根据原版逻辑）
-    if model_type == "multitalk":
-        if high_vram_mode:
-            # 高VRAM模式使用非量化版本
-            model_filename = "wan2.1_image2video_480p_14B_mbf16.safetensors"
-        else:
-            # 标准模式使用量化版本  
-            model_filename = "wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors"
+    # 根据原版 vace_multitalk_14B.json 配置设置模型文件名
+    if model_type == "vace_multitalk_14B":
+        # 使用与原版成功配置一致的 FusioniX 量化模型
+        model_filename = "Wan14BT2VFusioniX_quanto_bf16_int8.safetensors"
     else:
         return f"❌ 不支持的模型类型: {model_type}"
     
@@ -53,29 +48,33 @@ def load_multitalk_model(model_type="multitalk", high_vram_mode=False):
     
     try:
         print(f"正在加载模型: {model_filename}")
-        print(f"高 VRAM 模式: {'开启' if high_vram_mode else '关闭'}")
         # 使用 i2v 配置，因为 multitalk 需要 i2v 模式
         cfg = WAN_CONFIGS['i2v-14B']
         current_model_type = model_type
         
-        # 根据 VRAM 模式选择数据类型
-        if high_vram_mode:
-            # 高 VRAM 模式：使用更高精度，不量化
-            dtype = torch.float16 if not torch.cuda.is_bf16_supported() else torch.bfloat16
-            VAE_dtype = torch.float32
-            quantizeTransformer = False
-        else:
-            # 标准模式：使用量化以节省 VRAM
-            dtype = torch.bfloat16
-            VAE_dtype = torch.float32
-            quantizeTransformer = True
+        # 根据原版配置设置数据类型（使用量化模式节省VRAM）
+        dtype = torch.bfloat16
+        VAE_dtype = torch.float32
+        quantizeTransformer = True  # 使用量化模式
         
-        # 创建临时的模型定义，模拟原版的配置方式
+        # 设置文本编码器文件名（根据原版逻辑）
+        def get_wan_text_encoder_filename(quantization):
+            """获取文本编码器文件名"""
+            text_encoder_filename = "ckpts/umt5-xxl/models_t5_umt5-xxl-enc-bf16.safetensors"
+            if quantization == "int8":
+                text_encoder_filename = text_encoder_filename.replace("bf16", "quanto_int8")
+            return text_encoder_filename
+        
+        # 根据量化模式确定文本编码器
+        text_encoder_quantization = "int8" if quantizeTransformer else "bf16"
+        text_encoder_file = get_wan_text_encoder_filename(text_encoder_quantization)
+        
+        # 创建模型定义，与原版 vace_multitalk_14B.json 一致
         temp_model_def = {
-            "name": "MultiTalk Model",
-            "architecture": "multitalk", 
-            "modules": ["multitalk"],
-            "auto_quantize": not high_vram_mode
+            "name": "Vace Multitalk FusioniX 14B",
+            "architecture": "vace_multitalk_14B", 
+            "modules": ["vace_14B", "multitalk"],
+            "auto_quantize": True
         }
         
         wan_model = WanAny2V(
@@ -85,7 +84,7 @@ def load_multitalk_model(model_type="multitalk", high_vram_mode=False):
             model_type=model_type,
             model_def=temp_model_def,  # 添加模型定义
             base_model_type="wan_i2v_14B",
-            text_encoder_filename=None,  # 使用默认
+            text_encoder_filename=text_encoder_file,  # 使用正确的文本编码器文件名
             quantizeTransformer=quantizeTransformer,  # 根据模式决定是否量化
             dtype=dtype,
             VAE_dtype=VAE_dtype,
@@ -308,37 +307,18 @@ def create_ui():
                 with gr.Group():
                     gr.Markdown("### 📦 模型设置")
                     model_type_choice = gr.Dropdown(
-                        choices=["multitalk"],
-                        value="multitalk",
+                        choices=["vace_multitalk_14B"],
+                        value="vace_multitalk_14B",
                         label="模型类型"
-                    )
-                    high_vram_mode = gr.Checkbox(
-                        label="高 VRAM 模式（24GB+）- 禁用量化，使用更高精度",
-                        value=False
                     )
                     load_btn = gr.Button("加载模型", variant="primary")
                     
                     # 显示当前将使用的模型文件
-                    def get_model_info(high_vram):
-                        if high_vram:
-                            filename = "wan2.1_image2video_480p_14B_mbf16.safetensors"
-                            mode = "高精度模式（无量化）"
-                        else:
-                            filename = "wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors" 
-                            mode = "标准模式（量化）"
-                        return f"将使用: {filename}\n模式: {mode}"
-                    
                     model_info = gr.Textbox(
                         label="模型信息",
-                        value=get_model_info(False),
+                        value="将使用: Wan14BT2VFusioniX_quanto_bf16_int8.safetensors\n模式: Vace+MultiTalk 量化模式",
                         interactive=False,
                         lines=2
-                    )
-                    
-                    high_vram_mode.change(
-                        get_model_info,
-                        inputs=[high_vram_mode],
-                        outputs=[model_info]
                     )
                 
                 # 基础参数
@@ -497,7 +477,7 @@ def create_ui():
         
         load_btn.click(
             load_multitalk_model,
-            inputs=[model_type_choice, high_vram_mode],
+            inputs=[model_type_choice],
             outputs=[status_text]
         )
         

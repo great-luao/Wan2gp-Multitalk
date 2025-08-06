@@ -20,23 +20,15 @@ cd /workspace/Wan2gp-Multitalk
 echo "📁 Checking directory structure..."
 
 # Check model files
-echo "🔍 Checking MultiTalk model files..."
-MULTITALK_QUANTIZED="ckpts/wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors"
-I2V_MODEL="ckpts/wan2.1_image2video_480p_14B_mbf16.safetensors"
+echo "🔍 Checking Vace MultiTalk model files..."
+VACE_MULTITALK_MODEL="ckpts/Wan14BT2VFusioniX_quanto_bf16_int8.safetensors"
 VAE_MODEL="ckpts/Wan2.1_VAE.safetensors"
 
-if [ ! -f "$MULTITALK_QUANTIZED" ]; then
-    echo "⚠️  WARNING: MultiTalk quantized model not found"
-    echo "Please place model file at: $MULTITALK_QUANTIZED"
+if [ ! -f "$VACE_MULTITALK_MODEL" ]; then
+    echo "⚠️  WARNING: Vace MultiTalk FusioniX model not found"
+    echo "Please place model file at: $VACE_MULTITALK_MODEL"
 else
-    echo "✅ MultiTalk quantized model found"
-fi
-
-if [ ! -f "$I2V_MODEL" ]; then
-    echo "⚠️  WARNING: I2V base model not found (needed for high VRAM mode)"
-    echo "Please place model file at: $I2V_MODEL"
-else
-    echo "✅ I2V base model found"
+    echo "✅ Vace MultiTalk FusioniX model found"
 fi
 
 if [ ! -f "$VAE_MODEL" ]; then
@@ -93,8 +85,5 @@ SERVER_NAME="0.0.0.0"
 SERVER_PORT="7860"
 
 echo "Starting MultiTalk on $SERVER_NAME:$SERVER_PORT"
-nohup python3 multitalk_app.py --server-name $SERVER_NAME --server-port $SERVER_PORT&
-echo "MultiTalk started on port $SERVER_PORT"
-echo ""
-echo "🚀 Application directly accessible on port $SERVER_PORT"
-echo ""
+# python3 multitalk_app.py --server-name 0.0.0.0 --server-port 7860 --no-browser
+python3 multitalk_app.py --server-name $SERVER_NAME --server-port $SERVER_PORT --no-browser
