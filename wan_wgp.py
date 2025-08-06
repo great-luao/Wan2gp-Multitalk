@@ -297,7 +297,7 @@ def process_prompt_and_add_tasks(state, model_choice):
     activated_loras = inputs["activated_loras"]
 
     if len(loras_multipliers) > 0:
-        _, _, errors =  parse_loras_multipliers(loras_multipliers, len(activated_loras), num_inference_steps, max_phases= 2 if get_model_family(model_type)=="wan" and model_type not in ["sky_df_1.3B", "sky_df_14B"] else 1)
+        _, _, errors =  parse_loras_multipliers(loras_multipliers, len(activated_loras), num_inference_steps, max_phases= 2 if get_model_family(model_type)=="wan" else 1)
         if len(errors) > 0: 
             gr.Info(f"Error parsing Loras Multipliers: {errors}")
             return
@@ -310,9 +310,7 @@ def process_prompt_and_add_tasks(state, model_choice):
         gr.Info("The minimum number of steps should be 20") 
         return
     if skip_steps_cache_type == "mag":
-        if model_type in  ["sky_df_1.3B", "sky_df_14B"]:
-            gr.Info("Mag Cache is not supported with Diffusion Forcing")
-            return
+        pass
         if num_inference_steps > 50:
             gr.Info("Mag Cache maximum number of steps is 50")
             return
@@ -1688,13 +1686,7 @@ else:
     server_config = json.loads(text)
 
 #   Deprecated models
-for path in  ["wan2.1_Vace_1.3B_preview_bf16.safetensors", "sky_reels2_diffusion_forcing_1.3B_bf16.safetensors","sky_reels2_diffusion_forcing_720p_14B_bf16.safetensors",
-"sky_reels2_diffusion_forcing_720p_14B_quanto_int8.safetensors", "sky_reels2_diffusion_forcing_720p_14B_quanto_fp16_int8.safetensors", "wan2.1_image2video_480p_14B_bf16.safetensors", "wan2.1_image2video_480p_14B_quanto_int8.safetensors",
-"wan2.1_image2video_720p_14B_quanto_int8.safetensors", "wan2.1_image2video_720p_14B_quanto_fp16_int8.safetensors", "wan2.1_image2video_720p_14B_bf16.safetensors",
-"wan2.1_text2video_14B_bf16.safetensors", "wan2.1_text2video_14B_quanto_int8.safetensors",
-"wan2.1_Vace_14B_mbf16.safetensors", "wan2.1_Vace_14B_quanto_mbf16_int8.safetensors", "wan2.1_FLF2V_720p_14B_quanto_int8.safetensors", "wan2.1_FLF2V_720p_14B_bf16.safetensors",  "wan2.1_FLF2V_720p_14B_fp16.safetensors", "wan2.1_Vace_1.3B_mbf16.safetensors", "wan2.1_text2video_1.3B_bf16.safetensors",
-
-]:
+for path in  ["wan2.1_Vace_14B_mbf16.safetensors", "wan2.1_Vace_14B_quanto_mbf16_int8.safetensors"]:
     if Path(os.path.join("ckpts" , path)).is_file():
         print(f"Removing old version of model '{path}'. A new version of this model will be downloaded next time you use it.")
         os.remove( os.path.join("ckpts" , path))
@@ -1705,24 +1697,15 @@ models_def = {}
 
 modules_files = {
     "vace_14B" : ["ckpts/wan2.1_Vace_14B_module_mbf16.safetensors", "ckpts/wan2.1_Vace_14B_module_quanto_mbf16_int8.safetensors", "ckpts/wan2.1_Vace_14B_module_quanto_mfp16_int8.safetensors"],
-    "vace_1.3B" : ["ckpts/wan2.1_Vace_1_3B_module.safetensors"],
-    "fantasy": ["ckpts/wan2.1_fantasy_speaking_14B_bf16.safetensors"],
     "multitalk": ["ckpts/wan2.1_multitalk_14B_mbf16.safetensors", "ckpts/wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors", "ckpts/wan2.1_multitalk_14B_quanto_mfp16_int8.safetensors"]
 }
 
 # architectures supported
-base_types = ["multitalk", "fantasy", "vace_14B", "vace_multitalk_14B",
-                "t2v_1.3B", "t2v", "vace_1.3B", "phantom_1.3B", "phantom_14B", 
-                "recam_1.3B",  "sky_df_1.3B", "sky_df_14B",
-                "i2v", "i2v_2_2", "flf2v_720p", "fun_inp_1.3B", "fun_inp"
+base_types = ["multitalk", "vace_14B", "vace_multitalk_14B"
                 ] 
 
 # only needed for imported old settings files
-model_signatures = {"t2v": "text2video_14B", "t2v_1.3B" : "text2video_1.3B",   "fun_inp_1.3B" : "Fun_InP_1.3B",  "fun_inp" :  "Fun_InP_14B", 
-                    "i2v" : "image2video_480p", "i2v_720p" : "image2video_720p" , "vace_1.3B" : "Vace_1.3B", "vace_14B": "Vace_14B", "recam_1.3B": "recammaster_1.3B", 
-                    "sky_df_1.3B" : "sky_reels2_diffusion_forcing_1.3B", "sky_df_14B" : "sky_reels2_diffusion_forcing_14B", 
-                    "sky_df_720p_14B" : "sky_reels2_diffusion_forcing_720p_14B",
-                    "phantom_1.3B" : "phantom_1.3B", "phantom_14B" : "phantom_14B"}
+model_signatures = {"vace_14B": "Vace_14B"}
 
 def get_base_model_type(model_type):
     model_def = get_model_def(model_type)
@@ -1738,19 +1721,9 @@ def are_model_types_compatible(imported_model_type, current_model_type):
     if imported_base_model_type == curent_base_model_type:
         return True
 
-    eqv_map = {
-        "flf2v_720p" : "i2v",
-        "t2v_1.3B" : "t2v",
-        "sky_df_1.3B" : "sky_df_14B",
-    }
-    if imported_base_model_type in eqv_map:
-        imported_base_model_type = eqv_map[imported_base_model_type]
     comp_map = { 
                  "vace_14B" : [ "vace_multitalk_14B"],
-                 "t2v" : [ "vace_14B", "vace_1.3B" "vace_multitalk_14B", "t2v_1.3B", "phantom_1.3B","phantom_14B"],
-                 "i2v" : [ "fantasy", "multitalk", "flf2v_720p" ],
-                 "fantasy": ["multitalk"],
-                 "sky_df_14B": ["sky_df_1.3B"],
+                 "multitalk": []
                 }
     comp_list=  comp_map.get(imported_base_model_type, None)
     if comp_list == None: return False
@@ -1783,21 +1756,19 @@ def get_model_family(model_type, for_ui = False):
 
 def test_class_i2v(model_type):
     model_type = get_base_model_type(model_type)
-    return model_type in ["i2v", "i2v_2_2", "fun_inp_1.3B", "fun_inp", "flf2v_720p",  "fantasy",  "multitalk" ] #"hunyuan_i2v",
+    return model_type in ["multitalk"]
 
 def test_vace_module(model_type):
     model_type = get_base_model_type(model_type)
-    return model_type in ["vace_14B", "vace_1.3B", "vace_multitalk_14B"] 
+    return model_type in ["vace_14B", "vace_multitalk_14B"] 
 
 def test_any_sliding_window(model_type):
     model_type = get_base_model_type(model_type)
-    return test_vace_module(model_type) or model_type in ["sky_df_1.3B", "sky_df_14B", "multitalk", "t2v", "fantasy"] or test_class_i2v(model_type)
+    return test_vace_module(model_type) or model_type in ["multitalk"] or test_class_i2v(model_type)
 
 def get_model_min_frames_and_step(model_type):
     model_type = get_base_model_type(model_type)
-    if model_type in ["sky_df_14B"]:
-        return 17, 20
-    elif test_vace_module(model_type): 
+    if test_vace_module(model_type): 
         return 17, 4
     else:
         return 5, 4
@@ -1806,10 +1777,6 @@ def get_model_fps(model_type):
     model_type = get_base_model_type(model_type)
     if model_type in ["multitalk", "vace_multitalk_14B"]:
         fps = 25
-    elif model_type in ["sky_df_14B"]:
-        fps = 24
-    elif model_type in ["fantasy"]:
-        fps = 23
     else:
         fps = 16
     return fps
@@ -1911,7 +1878,6 @@ def get_transformer_dtype(model_family, transformer_dtype_policy):
                 return torch.float16
             else: 
                 return torch.bfloat16
-        return transformer_dtype
     elif transformer_dtype_policy =="fp16":
         return torch.float16
     else:
@@ -1944,7 +1910,7 @@ def fix_settings(model_type, ui_defaults):
 
     audio_prompt_type = ui_defaults.get("audio_prompt_type", None)
     if video_settings_version < 2.2: 
-        if not model_type in ["vace_1.3B","vace_14B", "sky_df_1.3B", "sky_df_14B"]:
+        if not model_type in ["vace_14B"]:
             for p in  ["sliding_window_size", "sliding_window_overlap", "sliding_window_overlap_noise", "sliding_window_discard_last_frames"]:
                 if p in ui_defaults: del ui_defaults[p]
 
@@ -1956,7 +1922,7 @@ def fix_settings(model_type, ui_defaults):
 
     video_prompt_type = ui_defaults.get("video_prompt_type", "")
     any_reference_image = model_def.get("reference_image", False)
-    if model_type in ["hunyuan_custom", "hunyuan_custom_edit", "hunyuan_custom_audio", "hunyuan_avatar", "phantom_14B", "phantom_1.3B"] or any_reference_image:
+    if any_reference_image:
         if not "I" in video_prompt_type:  # workaround for settings corruption
             video_prompt_type += "I" 
     if model_type in ["hunyuan"]:
@@ -2051,57 +2017,8 @@ def get_default_settings(model_type):
                 ui_defaults.update({
                     "video_prompt_type": "KI",
                 })
-        elif base_model_type in ["sky_df_1.3B", "sky_df_14B"]:
-            ui_defaults.update({
-                "guidance_scale": 6.0,
-                "flow_shift": 8,
-                "sliding_window_discard_last_frames" : 0,
-                "resolution": "1280x720" if "720" in base_model_type else "960x544",
-                "sliding_window_size" : 121 if "720" in base_model_type else 97,
-                "RIFLEx_setting": 2,
-                "guidance_scale": 6,
-                "flow_shift": 8,
-            })
 
 
-        elif base_model_type in ["phantom_1.3B", "phantom_14B"]:
-            ui_defaults.update({
-                "guidance_scale": 7.5,
-                "flow_shift": 5,
-                "remove_background_images_ref": 1,
-                "video_prompt_type": "I",
-                # "resolution": "1280x720" 
-            })
-
-        elif base_model_type in ["hunyuan_custom"]:
-            ui_defaults.update({
-                "guidance_scale": 7.5,
-                "flow_shift": 13,
-                "resolution": "1280x720",
-                "video_prompt_type": "I",
-            })
-        elif base_model_type in ["hunyuan_custom_audio"]:
-            ui_defaults.update({
-                "guidance_scale": 7.5,
-                "flow_shift": 13,
-                "video_prompt_type": "I",
-            })
-        elif base_model_type in ["hunyuan_custom_edit"]:
-            ui_defaults.update({
-                "guidance_scale": 7.5,
-                "flow_shift": 13,
-                "video_prompt_type": "MVAI",
-                "sliding_window_size": 129,
-            })
-        elif base_model_type in ["hunyuan_avatar"]:
-            ui_defaults.update({
-                "guidance_scale": 7.5,
-                "flow_shift": 5,
-                "remove_background_images_ref": 0,
-                "skip_steps_start_step_perc": 25, 
-                "video_length": 129,
-                "video_prompt_type": "I",
-            })
         elif base_model_type in ["vace_14B", "vace_multitalk_14B"]:
             ui_defaults.update({
                 "sliding_window_discard_last_frames": 0,
@@ -2136,10 +2053,7 @@ def get_model_query_handler(model_type):
     base_model_type = get_base_model_type(model_type)
     model_family= get_model_family(base_model_type)
     if model_family == "wan":
-        if base_model_type in ("sky_df_1.3B", "sky_df_14B"):
-            from wan.diffusion_forcing import query_model_def
-        else:
-            from wan.any2video import query_model_def
+        from wan.any2video import query_model_def
 
     else:
         raise Exception(f"Unknown / unsupported model type {model_type}")   
@@ -2592,10 +2506,7 @@ def load_wan_model(model_filename, model_type, base_model_type, model_def, quant
     else:
         cfg = WAN_CONFIGS['t2v-14B']
         # cfg = WAN_CONFIGS['t2v-1.3B']    
-    if base_model_type in ("sky_df_1.3B", "sky_df_14B"):
-        model_factory = wan.DTT2V
-    else:
-        model_factory = wan.WanAny2V
+    model_factory = wan.WanAny2V
 
     wan_model = model_factory(
         config=cfg,
@@ -4124,14 +4035,14 @@ def generate_video(
 
     i2v = test_class_i2v(model_type)
     diffusion_forcing = "diffusion_forcing" in model_filename
-    t2v = base_model_type in ["t2v"]
-    recam = base_model_type in ["recam_1.3B"]
+    t2v = False
+    recam = False
     ltxv = False
     vace =  test_vace_module(base_model_type) 
-    phantom = "phantom" in model_filename
-    hunyuan_t2v = "hunyuan_video_720" in model_filename
-    hunyuan_i2v = "hunyuan_video_i2v" in model_filename
-    hunyuan_custom = "hunyuan_video_custom" in model_filename
+    phantom = False
+    hunyuan_t2v = False
+    hunyuan_i2v = False
+    hunyuan_custom = False
     hunyuan_custom_audio =  hunyuan_custom and "audio" in model_filename
     hunyuan_custom_edit =  hunyuan_custom and "edit" in model_filename
     hunyuan_avatar = "hunyuan_video_avatar" in model_filename
@@ -4345,6 +4256,7 @@ def generate_video(
         gen["window_no"] = 1
         num_frames_generated = 0 # num of new frames created (lower than the number of frames really processed due to overlaps and discards)
         requested_frames_to_generate = default_requested_frames_to_generate # num  of num frames to create (if any source window this num includes also the overlapped source window frames)
+        previous_last_frame = None # for temporal upsampling
         start_time = time.time()
         if prompt_enhancer_image_caption_model != None and prompt_enhancer !=None and len(prompt_enhancer)>0:
             text_encoder_max_tokens = 256
@@ -4573,6 +4485,65 @@ def generate_video(
 
             # samples = torch.empty( (1,2)) #for testing
             # if False:
+            
+            
+            # Print main parameters for testing/debugging reference
+            print("=" * 80)
+            print("WAN Model Generate Parameters:")
+            print(f"  prompt: {prompt}")
+            print(f"  frame_num: {(current_video_length // latent_size)* latent_size + 1}")
+            print(f"  batch_size: {batch_size}")
+            print(f"  height: {height}")
+            print(f"  width: {width}")
+            print(f"  denoising_strength: {denoising_strength}")
+            print(f"  shift: {flow_shift}")
+            print(f"  sample_solver: {sample_solver}")
+            print(f"  sampling_steps: {num_inference_steps}")
+            print(f"  guide_scale: {guidance_scale}")
+            print(f"  guide2_scale: {guidance2_scale}")
+            print(f"  switch_threshold: {switch_threshold}")
+            print(f"  embedded_guidance_scale: {embedded_guidance_scale}")
+            print(f"  negative_prompt: {negative_prompt}")
+            print(f"  seed: {seed}")
+            print(f"  fit_into_canvas: {fit_canvas == 1}")
+            print(f"  model_mode: {model_mode}")
+            print(f"  model_type: {base_model_type}")
+            print(f"  model_filename: {model_filename}")
+            print(f"  fps: {fps}")
+            print(f"  window_no: {window_no}")
+            print(f"  prefix_frames_count: {source_video_overlap_frames_count if window_no <= 1 else reuse_frames}")
+            if image_start_tensor is not None:
+                print(f"  image_start_tensor.shape: {image_start_tensor.shape}")
+            if image_end_tensor is not None:
+                print(f"  image_end_tensor.shape: {image_end_tensor.shape}")
+            if src_video is not None:
+                print(f"  src_video.shape: {src_video.shape}")
+            if src_ref_images is not None:
+                print(f"  src_ref_images: {len(src_ref_images)} images")
+            if src_mask is not None:
+                print(f"  src_mask.shape: {src_mask.shape}")
+            if pre_video_guide is not None:
+                print(f"  pre_video_guide.shape: {pre_video_guide.shape}")
+            if audio_guide is not None:
+                print(f"  audio_guide: enabled")
+            if audio_guide2 is not None:
+                print(f"  audio_guide2: enabled")
+            print(f"  audio_guidance_scale: {audio_guidance_scale}")
+            print(f"  enable_RIFLEx: {enable_RIFLEx}")
+            print(f"  VAE_tile_size: {VAE_tile_size}")
+            print(f"  joint_pass: {joint_pass}")
+            print(f"  slg_layers: {slg_layers}")
+            print(f"  slg_start_perc: {slg_start_perc}")
+            print(f"  slg_end_perc: {slg_end_perc}")
+            print(f"  apg_switch: {apg_switch}")
+            print(f"  cfg_star_switch: {cfg_star_switch}")
+            print(f"  cfg_zero_step: {cfg_zero_step}")
+            print(f"  NAG_scale: {NAG_scale}")
+            print(f"  NAG_tau: {NAG_tau}")
+            print(f"  NAG_alpha: {NAG_alpha}")
+            print(f"  video_prompt_type: {video_prompt_type}")
+            print(f"  image_mode: {image_mode}")
+            print("=" * 80)
             
             try:
                 samples = wan_model.generate(
@@ -5557,13 +5528,13 @@ def prepare_inputs_dict(target, inputs, model_type = None, model_filename = None
     base_model_type = get_base_model_type(model_type)
     if model_type != base_model_type:
         inputs["base_model_type"] = base_model_type
-    diffusion_forcing = base_model_type in ["sky_df_1.3B", "sky_df_14B"]
+    diffusion_forcing = False
     vace =  test_vace_module(base_model_type) 
     ltxv = False
-    recammaster = base_model_type in ["recam_1.3B"]
-    phantom = base_model_type in ["phantom_1.3B", "phantom_14B"]
-    flux = base_model_type in ["flux"]
-    hunyuan_video_custom =  base_model_type in ["hunyuan_custom", "hunyuan_custom_audio", "hunyuan_custom_edit"]
+    recammaster = False
+    phantom = False
+    flux = False
+    hunyuan_video_custom = False
     model_family = get_model_family(base_model_type)
     if target == "settings":
         return inputs
@@ -6560,13 +6531,13 @@ def generate_video_tab(update_form = False, state_dict = None, ui_defaults = Non
             lock_inference_steps = model_def.get("lock_inference_steps", False)
             model_reference_image = model_def.get("reference_image", False)
             no_steps_skipping = model_def.get("no_steps_skipping", False)
-            recammaster = base_model_type in ["recam_1.3B"]
+            recammaster = False
             vace = test_vace_module(base_model_type)
-            phantom = base_model_type in ["phantom_1.3B", "phantom_14B"]
-            fantasy = base_model_type in ["fantasy"]
+            phantom = False
+            fantasy = False
             multitalk = base_model_type in ["multitalk", "vace_multitalk_14B"]
-            hunyuan_t2v = "hunyuan_video_720" in model_filename
-            hunyuan_i2v = "hunyuan_video_i2v" in model_filename
+            hunyuan_t2v = False
+            hunyuan_i2v = False
             hunyuan_video_custom = "hunyuan_video_custom" in model_filename
             hunyuan_video_custom =  base_model_type in ["hunyuan_custom", "hunyuan_custom_audio", "hunyuan_custom_edit"]
             hunyuan_video_custom_audio = base_model_type in ["hunyuan_custom_audio"]

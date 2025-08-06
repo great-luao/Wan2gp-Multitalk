@@ -409,7 +409,6 @@ class WanAny2V:
         context_scale=None,
         width = 1280,
         height = 720,
-        fit_into_canvas = True,
         frame_num=81,
         batch_size = 1,
         shift=5.0,
@@ -436,7 +435,6 @@ class WanAny2V:
         overlapped_latents  = None,
         return_latent_slice = None,
         overlap_noise = 0,
-        conditioning_latents_size = 0,
         keep_frames_parsed = [],
         model_type = None,
         model_mode = None,
@@ -444,7 +442,6 @@ class WanAny2V:
         NAG_scale = 0,
         NAG_tau = 3.5,
         NAG_alpha = 0.5,
-        offloadobj = None,
         apg_switch = False,
         speakers_bboxes = None,
         color_correction_strength = 1,
@@ -517,10 +514,7 @@ class WanAny2V:
         if self._interrupt: return None
 
         vace = model_type in ["vace_1.3B","vace_14B", "vace_multitalk_14B"]
-        phantom = model_type in ["phantom_1.3B", "phantom_14B"]
-        fantasy = model_type in ["fantasy"]
         multitalk = model_type in ["multitalk", "vace_multitalk_14B"]
-        recam = model_type in ["recam_1.3B"]
 
         ref_images_count = 0
         trim_frames = 0
@@ -622,21 +616,6 @@ class WanAny2V:
             if not clip_context is None:
                 kwargs.update({'clip_fea': clip_context})
 
-        # Recam Master
-        if recam:
-            # should be be in fact in input_frames since it is control video not a video to be extended
-            target_camera = model_mode
-            width = input_video.shape[2]
-            height = input_video.shape[1]
-            input_video = input_video.to(dtype=self.dtype , device=self.device)
-            source_latents = self.vae.encode([input_video])[0] #.to(dtype=self.dtype, device=self.device)
-            del input_video
-            # Process target camera (recammaster)
-            from wan.utils.cammmaster_tools import get_camera_embedding
-            cam_emb = get_camera_embedding(target_camera)       
-            cam_emb = cam_emb.to(dtype=self.dtype, device=self.device)
-            kwargs['cam_emb'] = cam_emb
-
         # Video 2 Video
         if denoising_strength < 1. and input_frames != None:
             height, width = input_frames.shape[-2:]
@@ -665,15 +644,6 @@ class WanAny2V:
                     if hasattr(sample_scheduler, "timesteps"): sample_scheduler.timesteps = timesteps
                     if hasattr(sample_scheduler, "sigmas"): sample_scheduler.sigmas= sample_scheduler.sigmas[injection_denoising_step:]
                     injection_denoising_step = 0
-
-        # Phantom
-        if phantom:
-            input_ref_images_neg = None
-            if input_ref_images != None: # Phantom Ref images
-                input_ref_images = self.get_vae_latents(input_ref_images, self.device)
-                input_ref_images_neg = torch.zeros_like(input_ref_images)
-                ref_images_count = input_ref_images.shape[1] if input_ref_images != None else 0
-                trim_frames = input_ref_images.shape[1]
 
         # Vace
         if vace :
@@ -719,9 +689,6 @@ class WanAny2V:
             human_no = len(audio_proj[0])
             token_ref_target_masks = get_target_masks(human_no, lat_h, lat_w, height, width, face_scale = 0.05, bbox = speakers_bboxes).to(self.dtype) if human_no > 1 else None
 
-        if fantasy and audio_proj != None:
-            kwargs.update({ "audio_proj": audio_proj.to(self.dtype), "audio_context_lens": audio_context_lens, }) 
-
 
         if self._interrupt:
             return None
@@ -740,7 +707,7 @@ class WanAny2V:
         # Steps Skipping
         cache_type = self.model.enable_cache 
         if cache_type != None:
-            x_count = 3 if phantom or fantasy or multitalk else 2
+            x_count = 3 if multitalk else 2
             self.model.previous_residual = [None] * x_count
             if cache_type == "tea":
                 self.model.compute_teacache_threshold(self.model.cache_start_step, timesteps, self.model.cache_multiplier)
@@ -822,19 +789,7 @@ class WanAny2V:
             else:
                 latent_model_input = latents
 
-            if phantom:
-                gen_args = {
-                    "x" : ([ torch.cat([latent_model_input[:,:, :-ref_images_count], input_ref_images.unsqueeze(0).expand(*expand_shape)], dim=2) ] * 2 + 
-                        [ torch.cat([latent_model_input[:,:, :-ref_images_count], input_ref_images_neg.unsqueeze(0).expand(*expand_shape)], dim=2)]),
-                    "context": [context, context_null, context_null] ,
-                }
-            elif fantasy:
-                gen_args = {
-                    "x" : [latent_model_input, latent_model_input, latent_model_input],
-                    "context" : [context, context_null, context_null],
-                    "audio_scale": [audio_scale, None, None ]
-                }
-            elif multitalk and audio_proj != None:
+            if multitalk and audio_proj != None:
                 gen_args = {
                     "x" : [latent_model_input, latent_model_input, latent_model_input],
                     "context" : [context, context_null, context_null],
@@ -862,17 +817,7 @@ class WanAny2V:
                 sub_gen_args = None
             if guide_scale == 1:
                 noise_pred = ret_values[0]                
-            elif phantom:
-                guide_scale_img= 5.0
-                guide_scale_text= guide_scale #7.5
-                pos_it, pos_i, neg = ret_values
-                noise_pred = neg + guide_scale_img * (pos_i - neg) + guide_scale_text * (pos_it - pos_i)
-                pos_it = pos_i = neg = None
-            elif fantasy:
-                noise_pred_cond, noise_pred_noaudio, noise_pred_uncond = ret_values
-                noise_pred = noise_pred_uncond + guide_scale * (noise_pred_noaudio - noise_pred_uncond) + audio_cfg_scale * (noise_pred_cond  - noise_pred_noaudio) 
-                noise_pred_noaudio = None
-            elif multitalk and audio_proj != None:
+            elif multitalk:
                 noise_pred_cond, noise_pred_drop_text, noise_pred_uncond = ret_values
                 if apg_switch != 0:
                     noise_pred = noise_pred_cond + (guide_scale - 1) * adaptive_projected_guidance(noise_pred_cond - noise_pred_drop_text, 
