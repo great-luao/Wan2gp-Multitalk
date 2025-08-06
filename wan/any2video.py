@@ -115,7 +115,7 @@ class WanAny2V:
         self.text_encoder = T5EncoderModel(
             text_len=config.text_len,
             dtype=config.t5_dtype,
-            device=torch.device('cpu'),
+            device=self.device,  # 使用CUDA设备而不是CPU
             checkpoint_path=text_encoder_filename,
             tokenizer_path=t5_tokenizer_path,
             shard_fn= None)

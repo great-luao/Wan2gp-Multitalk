@@ -475,14 +475,14 @@ class T5EncoderModel:
         self,
         text_len,
         dtype=torch.bfloat16,
-        device=torch.cuda.current_device(),
+        device=None,  # 改为None，让调用者明确指定设备
         checkpoint_path=None,
         tokenizer_path=None,
         shard_fn=None,
     ):
         self.text_len = text_len
         self.dtype = dtype
-        self.device = device
+        self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.checkpoint_path = checkpoint_path
         self.tokenizer_path = tokenizer_path
 
@@ -493,7 +493,7 @@ class T5EncoderModel:
                 encoder_only=True,
                 return_tokenizer=False,
                 dtype=dtype,
-                device=device).eval().requires_grad_(False)
+                device=self.device).eval().requires_grad_(False)
         logging.info(f'loading {checkpoint_path}')
         from mmgp import offload
         offload.load_model_data(model,checkpoint_path, writable_tensors= False )
@@ -503,10 +503,15 @@ class T5EncoderModel:
             self.model = shard_fn(self.model, sync_module_states=False)
         else:
             self.model.to(self.device)
+        
+        # ===== 调试代码：检查T5模型设备状态 =====
+        print(f"🔍 DEBUG: T5 model device = {self.device}")
+        print(f"🔍 DEBUG: T5 model first parameter device = {next(self.model.parameters()).device}")
         # init tokenizer
-        tokenizer_path= "google/umt5-xxl"
+        actual_tokenizer_path = self.tokenizer_path if self.tokenizer_path else "google/umt5-xxl"
+        print(f"🔍 DEBUG: Using tokenizer path = {actual_tokenizer_path}")
         self.tokenizer = HuggingfaceTokenizer(
-            name=tokenizer_path, seq_len=text_len, clean='whitespace')
+            name=actual_tokenizer_path, seq_len=text_len, clean='whitespace')
 
     def __call__(self, texts, device):
         ids, mask = self.tokenizer(
