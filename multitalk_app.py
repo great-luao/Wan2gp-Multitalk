@@ -310,13 +310,11 @@ def create_ui():
                     model_type_choice = gr.Dropdown(
                         choices=["multitalk"],
                         value="multitalk",
-                        label="模型类型",
-                        info="选择要使用的MultiTalk模型类型"
+                        label="模型类型"
                     )
                     high_vram_mode = gr.Checkbox(
-                        label="高 VRAM 模式（24GB+）",
-                        value=False,
-                        info="禁用量化，使用更高精度，提升速度和质量"
+                        label="高 VRAM 模式（24GB+）- 禁用量化，使用更高精度",
+                        value=False
                     )
                     load_btn = gr.Button("加载模型", variant="primary")
                     
@@ -364,10 +362,10 @@ def create_ui():
                     
                     # 图像输入（图生视频模式）
                     with gr.Group(visible=False) as image_input_group:
+                        gr.Markdown("上传一张图像作为视频生成的起始帧")
                         input_image = gr.Image(
                             label="输入图像",
-                            type="pil",
-                            info="上传一张图像作为视频生成的起始帧"
+                            type="pil"
                         )
                 
                 # 音频设置
@@ -378,17 +376,15 @@ def create_ui():
                     audio_file2 = gr.File(label="说话人2音频（可选）", file_types=["audio"])
                     
                     speakers_locations = gr.Textbox(
-                        label="说话人位置",
+                        label="说话人位置 (示例: '25:75' 表示两个说话人分别在屏幕 25% 和 75% 的位置)",
                         value="25:75",
-                        placeholder="格式: 左:右 或 左:上:右:下（百分比）",
-                        info="示例: '25:75' 表示两个说话人分别在屏幕 25% 和 75% 的位置"
+                        placeholder="格式: 左:右 或 左:上:右:下（百分比）"
                     )
                     
                     audio_combination_type = gr.Radio(
                         choices=["add", "para"],
                         value="add",
-                        label="音频组合方式",
-                        info="add: 顺序播放, para: 并行播放"
+                        label="音频组合方式 (add: 顺序播放, para: 并行播放)"
                     )
                 
                 # 视频参数

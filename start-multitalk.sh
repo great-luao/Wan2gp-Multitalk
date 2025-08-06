@@ -94,7 +94,7 @@ SERVER_PORT="7860"
 
 echo "Starting MultiTalk on $SERVER_NAME:$SERVER_PORT"
 nohup python3 multitalk_app.py --server-name $SERVER_NAME --server-port $SERVER_PORT&
-echo "MultiTalk started on port $SERVER_PORT, logs in /workspace/multitalk.log"
+echo "MultiTalk started on port $SERVER_PORT"
 echo ""
 echo "🚀 Application directly accessible on port $SERVER_PORT"
 echo ""
