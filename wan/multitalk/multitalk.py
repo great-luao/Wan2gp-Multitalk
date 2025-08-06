@@ -281,7 +281,7 @@ def parse_speakers_locations(speakers_locations):
     bbox = {}
     if speakers_locations is None or len(speakers_locations) == 0:
         return None, ""
-    speakers = speakers_locations.split(" ")
+    speakers = speakers_locations.split(":")
     if len(speakers) !=2:
         error= "Two speakers locations should be defined"
         return "", error
