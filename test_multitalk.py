@@ -9,7 +9,6 @@ import os
 import numpy as np
 import traceback
 from datetime import datetime
-import argparse
 
 # 导入核心组件
 from wan.configs import WAN_CONFIGS
@@ -40,7 +39,7 @@ CONFIG = {
     "negative_prompt": "blurry, low quality, static",
     "width": 768,
     "height": 432,
-    "video_length": 100,  # 帧数
+    "video_length": 101,  # 帧数
     "fps": 25,
     "seed": 42,
     "num_inference_steps": 30,
@@ -251,6 +250,22 @@ def generate_video():
             joint_pass = device_mem >= 12000
             print(f"✅ 自动设置joint_pass: {joint_pass}")
         
+        # 创建默认起始图像（MultiTalk需要起始图像）
+        print("正在创建起始图像...")
+        from PIL import Image
+        import torchvision.transforms.functional as TF
+        
+        # 创建一个简单的黑色起始图像
+        start_image = Image.new('RGB', (CONFIG["width"], CONFIG["height"]), color=(0, 0, 0))
+        
+        # 转换为张量格式 [C, H, W]，范围 [-1, 1]
+        image_start = TF.to_tensor(start_image).sub_(0.5).div_(0.5)
+        print(f"✅ 起始图像张量已创建: {image_start.shape}")
+        
+        # 创建临时目录用于后续清理
+        temp_dir = f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        os.makedirs(temp_dir, exist_ok=True)
+        
         # 重置中断标志
         wan_model._interrupt = False
         
@@ -278,6 +293,7 @@ def generate_video():
             audio_proj=audio_proj,
             speakers_bboxes=speakers_bboxes,
             token_ref_target_masks=token_ref_target_masks,
+            image_start=image_start,  # 使用正确的参数名提供起始图像张量
             model_type="multitalk",
             sample_solver="unipc",
             VAE_tile_size=vae_tile_size,
