@@ -253,14 +253,15 @@ def generate_video():
         # 创建默认起始图像（MultiTalk需要起始图像）
         print("正在创建起始图像...")
         from PIL import Image
-        import torchvision.transforms.functional as TF
+        import numpy as np
         
         # 创建一个简单的黑色起始图像
         start_image = Image.new('RGB', (CONFIG["width"], CONFIG["height"]), color=(0, 0, 0))
         
-        # 转换为张量格式 [C, H, W]，范围 [-1, 1]
-        image_start = TF.to_tensor(start_image).sub_(0.5).div_(0.5)
-        print(f"✅ 起始图像张量已创建: {image_start.shape}")
+        # 按照 wgp.py 的方式转换为张量格式 [C, H, W]，范围 [-1, 1]
+        # 确保数据类型为 float32，避免混合数据类型错误
+        image_start = torch.from_numpy(np.array(start_image).astype(np.float32)).div_(127.5).sub_(1.).movedim(-1, 0)
+        print(f"✅ 起始图像张量已创建: {image_start.shape}, dtype: {image_start.dtype}")
         
         # 创建临时目录用于后续清理
         temp_dir = f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
