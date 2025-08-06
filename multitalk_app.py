@@ -107,14 +107,13 @@ def load_multitalk_model(model_type="vace_multitalk_14B"):
             fantasy_module      # Fantasy 模块
         ]
         
-        # ===== 调试代码：检查完整模型列表 =====
-        print(f"🔍 DEBUG: complete_model_list = {complete_model_list}")
-        print(f"🔍 DEBUG: temp_model_def = {temp_model_def}")
-        
-        # 修复模型文件路径 - 直接使用文件名，checkpoint_dir会自动处理
-        complete_model_list_with_path = complete_model_list
-        
-        print(f"🔍 DEBUG: complete_model_list_with_path = {complete_model_list_with_path}")
+        # 修复模型文件路径 - 添加checkpoint_dir前缀
+        complete_model_list_with_path = []
+        for filename in complete_model_list:
+            if not filename.startswith("ckpts/"):
+                complete_model_list_with_path.append(f"ckpts/{filename}")
+            else:
+                complete_model_list_with_path.append(filename)
 
         wan_model = WanAny2V(
             config=cfg,
