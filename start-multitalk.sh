@@ -15,14 +15,9 @@ fi
 
 # Change to application directory
 cd /workspace/Wan2gp-Multitalk
-# Make sure the code is up to date
-git checkout docker
-git pull
 
 # Check necessary directories
 echo "📁 Checking directory structure..."
-mkdir -p ckpts
-mkdir -p output
 
 # Check model files
 echo "🔍 Checking MultiTalk model files..."
@@ -94,20 +89,12 @@ export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
 echo "Starting MultiTalk application in background..."
 
 # Gradio runs on localhost:7860 for nginx to proxy
-SERVER_NAME="127.0.0.1"
+SERVER_NAME="0.0.0.0"
 SERVER_PORT="7860"
 
 echo "Starting MultiTalk on $SERVER_NAME:$SERVER_PORT"
-nohup python3 multitalk_app.py --server-name $SERVER_NAME --server-port $SERVER_PORT --no-browser > /workspace/multitalk.log 2>&1 &
+nohup python3 multitalk_app.py --server-name $SERVER_NAME --server-port $SERVER_PORT&
 echo "MultiTalk started on port $SERVER_PORT, logs in /workspace/multitalk.log"
 echo ""
 echo "🚀 Application directly accessible on port $SERVER_PORT"
 echo ""
-
-echo "Starting RunPod services..."
-if [ -f "/start.sh" ]; then
-    /start.sh
-else
-    echo "No /start.sh found, keeping container alive by monitoring log for debugging."
-    tail -f /workspace/multitalk.log
-fi

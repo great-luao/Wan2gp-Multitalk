@@ -32,14 +32,14 @@ echo ""
 echo "🚀 Application directly accessible on port 7860"
 echo ""
 
-echo "Starting RunPod services..."
-if [ -f "/start.sh" ]; then
-    # Start RunPod services in background to avoid blocking
-    /start.sh &
-    # Keep our application logs visible
-    echo "RunPod services started in background"
-    tail -f /workspace/wan2gp.log
-else
-    echo "No /start.sh found, keeping container alive by monitoring log for debugging."
-    tail -f /workspace/wan2gp.log
-fi 
+# echo "Starting RunPod services..."
+# if [ -f "/start.sh" ]; then
+#     # Start RunPod services in background to avoid blocking
+#     /start.sh &
+#     # Keep our application logs visible
+#     echo "RunPod services started in background"
+#     tail -f /workspace/wan2gp.log
+# else
+#     echo "No /start.sh found, keeping container alive by monitoring log for debugging."
+#     tail -f /workspace/wan2gp.log
+# fi 
