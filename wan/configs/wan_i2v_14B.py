@@ -10,7 +10,7 @@ i2v_14B = EasyDict(__name__='Config: Wan I2V 14B')
 i2v_14B.update(wan_shared_cfg)
 
 i2v_14B.t5_checkpoint = 'models_t5_umt5-xxl-enc-bf16.pth'
-i2v_14B.t5_tokenizer = 'google/umt5-xxl'
+i2v_14B.t5_tokenizer = 'umt5-xxl'
 
 # clip
 i2v_14B.clip_model = 'clip_xlm_roberta_vit_h_14'
@@ -19,7 +19,7 @@ i2v_14B.clip_checkpoint = 'xlm-roberta-large/models_clip_open-clip-xlm-roberta-l
 i2v_14B.clip_tokenizer = 'xlm-roberta-large'
 
 # vae
-i2v_14B.vae_checkpoint = 'Wan2.1_VAE.pth'
+i2v_14B.vae_checkpoint = 'Wan2.1_VAE.safetensors'
 i2v_14B.vae_stride = (4, 8, 8)
 
 # transformer

@@ -111,10 +111,20 @@ def load_multitalk_model(model_type="vace_multitalk_14B"):
         print(f"🔍 DEBUG: complete_model_list = {complete_model_list}")
         print(f"🔍 DEBUG: temp_model_def = {temp_model_def}")
         
+        # 修复模型文件路径 - 添加checkpoint_dir前缀
+        complete_model_list_with_path = []
+        for filename in complete_model_list:
+            if not filename.startswith("ckpts/"):
+                complete_model_list_with_path.append(f"ckpts/{filename}")
+            else:
+                complete_model_list_with_path.append(filename)
+        
+        print(f"🔍 DEBUG: complete_model_list_with_path = {complete_model_list_with_path}")
+
         wan_model = WanAny2V(
             config=cfg,
             checkpoint_dir="ckpts",
-            model_filename=complete_model_list,  # 传递完整的模型文件列表
+            model_filename=complete_model_list_with_path,  # 使用带路径的模型文件列表
             model_type=model_type,
             model_def=temp_model_def,  # 添加模型定义
             base_model_type="vace_multitalk_14B",

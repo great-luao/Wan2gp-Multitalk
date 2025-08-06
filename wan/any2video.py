@@ -158,9 +158,14 @@ class WanAny2V:
         if isinstance(model_filename, list):
             for i, filename in enumerate(model_filename):
                 print(f"🔍 DEBUG: model_filename[{i}] = {filename}")
-                print(f"🔍 DEBUG: model_filename[{i}] exists = {os.path.exists(filename) if filename else False}")
+                # 检查相对路径和绝对路径
+                full_path = os.path.join(checkpoint_dir, filename) if not os.path.isabs(filename) else filename
+                print(f"🔍 DEBUG: model_filename[{i}] full_path = {full_path}")
+                print(f"🔍 DEBUG: model_filename[{i}] exists = {os.path.exists(full_path) if filename else False}")
         else:
-            print(f"🔍 DEBUG: model_filename exists = {os.path.exists(model_filename) if model_filename else False}")
+            full_path = os.path.join(checkpoint_dir, model_filename) if not os.path.isabs(model_filename) else model_filename
+            print(f"🔍 DEBUG: model_filename full_path = {full_path}")
+            print(f"🔍 DEBUG: model_filename exists = {os.path.exists(full_path) if model_filename else False}")
 
         if self.transformer_switch:
             shared_modules= {}
