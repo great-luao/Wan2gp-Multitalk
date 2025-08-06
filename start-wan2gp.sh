@@ -13,55 +13,7 @@ else
     echo "Application files already present"
 fi
 
-# Set up nginx proxy without authentication
-echo "Setting up nginx proxy..."
-
-# Verify nginx is available
-if ! command -v nginx &> /dev/null; then
-    echo "❌ ERROR: nginx command not found"
-    echo "RunPod base image may have changed - nginx CLI tools not available"
-    exit 1
-fi
-
-# Create nginx proxy configuration without authentication
-echo "Configuring nginx proxy (no authentication)..."
-cat > /etc/nginx/conf.d/wan2gp-proxy.conf << 'EOF'
-# Wan2gp-Multitalk Proxy (No Authentication)
-server {
-    listen 7862;
-    
-    location / {
-        proxy_pass http://localhost:7860;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # WebSocket support for Gradio
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-EOF
-
-# Ensure the main nginx config includes our proxy config from the conf.d directory
-if ! grep -q "include /etc/nginx/conf.d/.*.conf;" /etc/nginx/nginx.conf; then
-    echo "Adding 'include' for conf.d to nginx.conf..."
-    sed -i '/http {/a \    include /etc/nginx/conf.d/*.conf;' /etc/nginx/nginx.conf
-fi
-
-# Test nginx config
-if ! nginx -t 2>/dev/null; then
-    echo "❌ ERROR: nginx configuration test failed"
-    echo "Unable to create proxy"
-    exit 1
-fi
-
-echo "✅ Nginx proxy configured successfully"
-echo "🌐 External access via port 7862 → Internal Gradio on port 7860"
-
-# Start our application in the background
+# Start our application
 echo "Starting Wan2gp-Multitalk application in background..."
 cd /workspace/Wan2gp-Multitalk
 
@@ -69,20 +21,24 @@ cd /workspace/Wan2gp-Multitalk
 # git checkout docker
 git pull
 
-# Gradio runs on localhost:7860 for nginx to proxy
-SERVER_NAME="127.0.0.1"
+# Gradio runs on all interfaces for external access
+SERVER_NAME="0.0.0.0"
 SERVER_PORT="7860"
 
 echo "Starting Wan2gp-Multitalk on $SERVER_NAME:$SERVER_PORT"
 nohup python3 wgp.py --server-name $SERVER_NAME --server-port $SERVER_PORT > /workspace/wan2gp.log 2>&1 &
-echo "Wan2gp-Multitalk started on internal port $SERVER_PORT, logs in /workspace/wan2gp.log"
+echo "Wan2gp-Multitalk started on port $SERVER_PORT, logs in /workspace/wan2gp.log"
 echo ""
-echo "🚀 Application accessible via RunPod proxy on port 7862"
+echo "🚀 Application directly accessible on port 7860"
 echo ""
 
 echo "Starting RunPod services..."
 if [ -f "/start.sh" ]; then
-    /start.sh
+    # Start RunPod services in background to avoid blocking
+    /start.sh &
+    # Keep our application logs visible
+    echo "RunPod services started in background"
+    tail -f /workspace/wan2gp.log
 else
     echo "No /start.sh found, keeping container alive by monitoring log for debugging."
     tail -f /workspace/wan2gp.log

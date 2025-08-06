@@ -36,11 +36,11 @@ RUN echo 'printf '"'"'\eP$f{"hook": "SourcedRcFileForWarp", "value": { "shell": 
     && echo "Warp terminal integration configured"
 
 # Copy and set up our startup script
-COPY start-wan2gp.sh /usr/local/bin/start-wan2gp.sh
-RUN chmod +x /usr/local/bin/start-wan2gp.sh
+# COPY start-wan2gp.sh /usr/local/bin/start-wan2gp.sh
+# RUN chmod +x /usr/local/bin/start-wan2gp.sh
 
-# Expose ports for nginx proxy and Jupyter Lab
-EXPOSE 7862 8888 7860
+# Expose ports for Gradio web interface and Jupyter Lab
+EXPOSE 7860 8888
 
 # Use our startup script as the main command
-CMD ["/usr/local/bin/start-wan2gp.sh"]
+# CMD ["/usr/local/bin/start-wan2gp.sh"]
