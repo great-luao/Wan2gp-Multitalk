@@ -87,8 +87,11 @@ class WanAny2V:
         self.num_train_timesteps = config.num_train_timesteps
         self.param_dtype = config.param_dtype
         
+        # 初始化中断标志
+        self._interrupt = False
+        
         # ===== 调试代码：检查配置内容 =====
-        print(f"🔍 DEBUG: config attributes:")
+        print("🔍 DEBUG: config attributes:")
         if hasattr(config, 't5_checkpoint'):
             print(f"  - t5_checkpoint = {config.t5_checkpoint}")
         if hasattr(config, 't5_tokenizer'):

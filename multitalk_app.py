@@ -84,10 +84,10 @@ def load_multitalk_model(model_type="vace_multitalk_14B"):
         cfg = WAN_CONFIGS['i2v-14B']
         current_model_type = model_type
         
-        # 根据原版配置设置数据类型（使用量化模式节省VRAM）
+        # 根据原版配置设置数据类型（模型文件已经是量化版本）
         dtype = torch.bfloat16
         VAE_dtype = torch.float32
-        quantizeTransformer = True  # 使用量化模式
+        quantizeTransformer = False  # 模型文件已经量化，不需要再次量化
         
         # 使用之前已经设置好的文本编码器文件路径（量化版本）
         
@@ -111,13 +111,8 @@ def load_multitalk_model(model_type="vace_multitalk_14B"):
         print(f"🔍 DEBUG: complete_model_list = {complete_model_list}")
         print(f"🔍 DEBUG: temp_model_def = {temp_model_def}")
         
-        # 修复模型文件路径 - 添加checkpoint_dir前缀
-        complete_model_list_with_path = []
-        for filename in complete_model_list:
-            if not filename.startswith("ckpts/"):
-                complete_model_list_with_path.append(f"ckpts/{filename}")
-            else:
-                complete_model_list_with_path.append(filename)
+        # 修复模型文件路径 - 直接使用文件名，checkpoint_dir会自动处理
+        complete_model_list_with_path = complete_model_list
         
         print(f"🔍 DEBUG: complete_model_list_with_path = {complete_model_list_with_path}")
 
@@ -186,7 +181,9 @@ def generate_multitalk_video(
         # 使用上传的音频文件
         audio_path1 = audio_file1.name if audio_file1 else None
         audio_path2 = audio_file2.name if audio_file2 else None
-        sum_audio_path = None
+        
+        # 确定最终要合并的音频文件
+        sum_audio_path = audio_path1  # 优先使用第一个音频文件
         
         # 验证音频输入
         if not audio_path1:
@@ -242,18 +239,24 @@ def generate_multitalk_video(
             bbox=speakers_bboxes
         )
         
-        # 根据设备 VRAM 自动选择 VAE tile size
+        # 根据设备 VRAM 自动选择 VAE tile size 和 joint pass
         device_mem_capacity = torch.cuda.get_device_properties(0).total_memory / 1048576
         if device_mem_capacity >= 24000:  # 24GB+
             VAE_tile_size = 0  # 不使用瓦片化，最快
+            joint_pass = True
         elif device_mem_capacity >= 12000:  # 12GB+
             VAE_tile_size = 256
+            joint_pass = True
         else:
             VAE_tile_size = 128
+            joint_pass = False
         
         # 调用模型生成视频
         print(f"开始生成视频: {width}x{height}, {video_length}帧")
         print(f"设备 VRAM: {device_mem_capacity:.0f}MB, VAE Tile Size: {VAE_tile_size}")
+        
+        # 重置中断标志
+        wan_model._interrupt = False
         
         # 创建回调函数用于显示进度
         def progress_callback(step, total_steps, latents):
@@ -267,19 +270,19 @@ def generate_multitalk_video(
             frame_num=video_length,
             batch_size=1,
             seed=seed,
-            num_inference_steps=num_inference_steps,
-            guidance_scale=guidance_scale,
-            flow_shift=flow_shift,
-            embedded_guidance_scale=embedded_guidance_scale,
+            sampling_steps=num_inference_steps,
+            guide_scale=guidance_scale,
+            shift=flow_shift,
+            guide2_scale=embedded_guidance_scale,
             audio_cfg_scale=audio_guidance_scale,
             audio_proj=audio_proj,
             speakers_bboxes=speakers_bboxes,
-            token_ref_target_masks=token_ref_target_masks,  # 添加目标掩码
-            image_guide=image_guide_path,  # 图像输入路径
+            token_ref_target_masks=token_ref_target_masks,  # 添加正确的参数名
+            input_video=image_guide_path if generation_mode == "图生视频" else None,
             model_type="multitalk",
             sample_solver="unipc",
-            VAE_tile_size=VAE_tile_size,  # 添加 VAE 瓦片化参数
-            joint_pass=device_mem_capacity >= 16000,  # 16GB+ 启用 joint pass 优化
+            VAE_tile_size=VAE_tile_size,
+            joint_pass=joint_pass,
             callback=progress_callback if num_inference_steps > 10 else None
         )
         
@@ -288,27 +291,37 @@ def generate_multitalk_video(
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, f"multitalk_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4")
         
-        # 解码并保存视频
-        video_frames = wan_model.decode_video(samples)
+        # samples已经是解码后的视频张量，形状为 [C, T, H, W] 或 [T, C, H, W]
+        if isinstance(samples, torch.Tensor):
+            video_frames = samples
+        else:
+            # 如果返回的是列表，取第一个
+            video_frames = samples[0] if isinstance(samples, list) else samples
         
         # 使用 imageio 保存视频
         import imageio
         writer = imageio.get_writer(output_path, fps=fps, codec='libx264', quality=8)
         
+        # 转换张量格式：[C, T, H, W] -> [T, H, W, C]
+        if len(video_frames.shape) == 4:
+            if video_frames.shape[0] == 3:  # [C, T, H, W]
+                video_frames = video_frames.permute(1, 2, 3, 0)  # -> [T, H, W, C]
+            elif video_frames.shape[1] == 3:  # [T, C, H, W]
+                video_frames = video_frames.permute(0, 2, 3, 1)  # -> [T, H, W, C]
+        
+        # 转换为numpy并标准化到0-255
+        video_frames = video_frames.cpu().numpy()
+        if video_frames.dtype != np.uint8:
+            # 从[-1,1]范围转换到[0,255]
+            video_frames = ((video_frames + 1.0) * 127.5).clip(0, 255).astype(np.uint8)
+        
         for frame in video_frames:
-            # 确保帧是正确的格式
-            if isinstance(frame, torch.Tensor):
-                frame = frame.cpu().numpy()
-            if frame.dtype != np.uint8:
-                frame = (frame * 255).astype(np.uint8)
-            if len(frame.shape) == 3 and frame.shape[0] in [3, 4]:
-                frame = frame.transpose(1, 2, 0)
             writer.append_data(frame)
         
         writer.close()
         
         # 如果有音频，合并音频和视频
-        if sum_audio_path:
+        if sum_audio_path and os.path.exists(sum_audio_path):
             final_output = output_path.replace('.mp4', '_with_audio.mp4')
             import subprocess
             cmd = [
@@ -400,9 +413,9 @@ def create_ui():
                     audio_file2 = gr.File(label="说话人2音频（可选）", file_types=["audio"])
                     
                     speakers_locations = gr.Textbox(
-                        label="说话人位置 (示例: '25:75' 表示两个说话人分别在屏幕 25% 和 75% 的位置)",
+                        label="说话人位置 (示例: '25:75' 表示单人位置，'25:75 40:80' 表示两人位置)",
                         value="25:75",
-                        placeholder="格式: 左:右 或 左:上:右:下（百分比）"
+                        placeholder="单人: '25:75' 或 两人: '25:75 40:80' (左:右百分比)"
                     )
                     
                     audio_combination_type = gr.Radio(

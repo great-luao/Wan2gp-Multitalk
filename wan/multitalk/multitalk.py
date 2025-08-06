@@ -282,14 +282,14 @@ def parse_speakers_locations(speakers_locations):
     if speakers_locations is None or len(speakers_locations) == 0:
         return None, ""
     speakers = speakers_locations.split(" ")
-    if len(speakers) !=2:
-        error= "Two speakers locations should be defined"
+    if len(speakers) not in (1, 2):
+        error = "Speaker locations should be defined for 1 or 2 people. Format: '25:75' for single person, or '25:75 40:80' for two people"
         return "", error
     
     for i, speaker in enumerate(speakers):
         location = speaker.strip().split(":")
         if len(location) not in (2,4):
-            error = f"Invalid Speaker Location '{location}'. A Speaker Location should be defined in the format Left:Right or usuing a BBox Left:Top:Right:Bottom"
+            error = f"Invalid Speaker Location '{speaker}'. A Speaker Location should be defined in the format Left:Right (e.g., '25:75') or using a BBox Left:Top:Right:Bottom (e.g., '25:10:75:90')"
             return "", error
         try:
             good = False
@@ -298,7 +298,7 @@ def parse_speakers_locations(speakers_locations):
         except:
             pass
         if not good:
-            error = f"Invalid Speaker Location '{location}'. Each number should be between 0 and 100."
+            error = f"Invalid Speaker Location '{speaker}'. Each number should be between 0 and 100."
             return "", error
         if len(location_float) == 2:
             location_float = [location_float[0], 0, location_float[1], 100]
@@ -316,7 +316,7 @@ def get_target_masks(HUMAN_NUMBER, lat_h, lat_w, src_h, src_w, face_scale = 0.05
         human_masks = [human_mask1, human_mask2, background_mask]
     elif HUMAN_NUMBER==2:
         if bbox != None:
-            assert len(bbox) == HUMAN_NUMBER, f"The number of target bbox should be the same with cond_audio"
+            assert len(bbox) == HUMAN_NUMBER, "The number of target bbox should be the same with cond_audio"
             background_mask = torch.zeros([src_h, src_w])
             for _, person_bbox in bbox.items():
                 y_min, x_min, y_max, x_max = person_bbox
