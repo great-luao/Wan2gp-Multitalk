@@ -4764,62 +4764,66 @@ def generate_video(
             # if False:
             
             # Print main parameters for testing/debugging reference
-            print("=" * 80)
-            print("WAN Model Generate Parameters:")
-            print(f"  prompt: {prompt}")
-            print(f"  frame_num: {(current_video_length // latent_size)* latent_size + 1}")
-            print(f"  batch_size: {batch_size}")
-            print(f"  height: {height}")
-            print(f"  width: {width}")
-            print(f"  denoising_strength: {denoising_strength}")
-            print(f"  shift: {flow_shift}")
-            print(f"  sample_solver: {sample_solver}")
-            print(f"  sampling_steps: {num_inference_steps}")
-            print(f"  guide_scale: {guidance_scale}")
-            print(f"  guide2_scale: {guidance2_scale}")
-            print(f"  switch_threshold: {switch_threshold}")
-            print(f"  embedded_guidance_scale: {embedded_guidance_scale}")
-            print(f"  negative_prompt: {negative_prompt}")
-            print(f"  seed: {seed}")
-            print(f"  fit_into_canvas: {fit_canvas == 1}")
-            print(f"  model_mode: {model_mode}")
-            print(f"  model_type: {base_model_type}")
-            print(f"  model_filename: {model_filename}")
-            print(f"  fps: {fps}")
-            print(f"  window_no: {window_no}")
-            print(f"  prefix_frames_count: {source_video_overlap_frames_count if window_no <= 1 else reuse_frames}")
-            if image_start_tensor is not None:
-                print(f"  image_start_tensor.shape: {image_start_tensor.shape}")
-            if image_end_tensor is not None:
-                print(f"  image_end_tensor.shape: {image_end_tensor.shape}")
-            if src_video is not None:
-                print(f"  src_video.shape: {src_video.shape}")
-            if src_ref_images is not None:
-                print(f"  src_ref_images: {len(src_ref_images)} images")
-            if src_mask is not None:
-                print(f"  src_mask.shape: {src_mask.shape}")
-            if pre_video_guide is not None:
-                print(f"  pre_video_guide.shape: {pre_video_guide.shape}")
-            if audio_guide is not None:
-                print(f"  audio_guide: enabled")
-            if audio_guide2 is not None:
-                print(f"  audio_guide2: enabled")
-            print(f"  audio_guidance_scale: {audio_guidance_scale}")
-            print(f"  enable_RIFLEx: {enable_RIFLEx}")
-            print(f"  VAE_tile_size: {VAE_tile_size}")
-            print(f"  joint_pass: {joint_pass}")
-            print(f"  slg_layers: {slg_layers}")
-            print(f"  slg_start_perc: {slg_start_perc}")
-            print(f"  slg_end_perc: {slg_end_perc}")
-            print(f"  apg_switch: {apg_switch}")
-            print(f"  cfg_star_switch: {cfg_star_switch}")
-            print(f"  cfg_zero_step: {cfg_zero_step}")
-            print(f"  NAG_scale: {NAG_scale}")
-            print(f"  NAG_tau: {NAG_tau}")
-            print(f"  NAG_alpha: {NAG_alpha}")
-            print(f"  video_prompt_type: {video_prompt_type}")
-            print(f"  image_mode: {image_mode}")
-            print("=" * 80)
+            try:
+                print("=" * 80)
+                print("WAN Model Generate Parameters:")
+                print(f"  prompt: {prompt}")
+                print(f"  frame_num: {(current_video_length // latent_size)* latent_size + 1}")
+                print(f"  batch_size: {batch_size}")
+                print(f"  height: {height}")
+                print(f"  width: {width}")
+                print(f"  denoising_strength: {denoising_strength}")
+                print(f"  shift: {flow_shift}")
+                print(f"  sample_solver: {sample_solver}")
+                print(f"  sampling_steps: {num_inference_steps}")
+                print(f"  guide_scale: {guidance_scale}")
+                print(f"  guide2_scale: {guidance2_scale}")
+                print(f"  switch_threshold: {switch_threshold}")
+                print(f"  embedded_guidance_scale: {embedded_guidance_scale}")
+                print(f"  negative_prompt: {negative_prompt}")
+                print(f"  seed: {seed}")
+                print(f"  fit_into_canvas: {fit_canvas == 1}")
+                print(f"  model_mode: {model_mode}")
+                print(f"  model_type: {base_model_type}")
+                print(f"  model_filename: {model_filename}")
+                print(f"  fps: {fps}")
+                print(f"  window_no: {window_no}")
+                print(f"  prefix_frames_count: {source_video_overlap_frames_count if window_no <= 1 else reuse_frames}")
+                if image_start_tensor is not None:
+                    print(f"  image_start_tensor.shape: {image_start_tensor.shape}")
+                if image_end_tensor is not None:
+                    print(f"  image_end_tensor.shape: {image_end_tensor.shape}")
+                if src_video is not None:
+                    # src_video is a list
+                    print(f"  src_video: {len(src_video)} videos")
+                if src_ref_images is not None:
+                    print(f"  src_ref_images: {len(src_ref_images)} images")
+                if src_mask is not None:
+                    print(f"  src_mask.shape: {src_mask.shape}")
+                if pre_video_guide is not None:
+                    print(f"  pre_video_guide.shape: {pre_video_guide.shape}")
+                if audio_guide is not None:
+                    print("  audio_guide: enabled")
+                if audio_guide2 is not None:
+                    print("  audio_guide2: enabled")
+                print(f"  audio_guidance_scale: {audio_guidance_scale}")
+                print(f"  enable_RIFLEx: {enable_RIFLEx}")
+                print(f"  VAE_tile_size: {VAE_tile_size}")
+                print(f"  joint_pass: {joint_pass}")
+                print(f"  slg_layers: {slg_layers}")
+                print(f"  slg_start_perc: {slg_start_perc}")
+                print(f"  slg_end_perc: {slg_end_perc}")
+                print(f"  apg_switch: {apg_switch}")
+                print(f"  cfg_star_switch: {cfg_star_switch}")
+                print(f"  cfg_zero_step: {cfg_zero_step}")
+                print(f"  NAG_scale: {NAG_scale}")
+                print(f"  NAG_tau: {NAG_tau}")
+                print(f"  NAG_alpha: {NAG_alpha}")
+                print(f"  video_prompt_type: {video_prompt_type}")
+                print(f"  image_mode: {image_mode}")
+                print("=" * 80)
+            except Exception as e:
+                print(f"Error printing parameters: {e}")
 
             try:
                 samples = wan_model.generate(

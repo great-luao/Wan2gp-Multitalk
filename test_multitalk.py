@@ -6,7 +6,6 @@ MultiTalk 测试脚本（无UI版本）
 
 import torch
 import os
-import numpy as np
 import traceback
 from datetime import datetime
 
@@ -20,33 +19,33 @@ from wan.multitalk.multitalk import (
     get_target_masks
 )
 
-# 内置默认配置
+# 内置默认配置 - 原版 MultiTalk 480p
 CONFIG = {
     # 模型配置
-    "model_type": "vace_multitalk_14B",
+    "model_type": "multitalk",  # 使用原版multitalk而不是vace版本
     "checkpoint_dir": "ckpts",
     
-    # 音频输入
-    "audio_file1": "resources/speaker1.mp3",  # 说话人1音频文件
-    "audio_file2": "resources/speaker2.mp3",  # 说话人2音频文件（可选）
-    "audio_combination_type": "para",  # 音频组合方式: "add"(顺序) 或 "para"(并行)
+    # 音频输入 - One Person Speaking Only 模式
+    "audio_file1": "resources/speaker1.mp3",  # 说话人音频文件
+    "audio_file2": None,  # 单人模式不需要第二个音频
+    "audio_combination_type": "para",  # 音频组合方式（单人模式下无影响）
     
     # 说话人位置（百分比）
-    "speakers_locations": "25:75 40:80",  # 两个说话人位置，或单人用 "25:75"
+    "speakers_locations": "25:75",  # 单人说话位置（中心位置）
     
     # 生成参数
-    "prompt": "Two soldiers speaking on a battlefield.",
-    "negative_prompt": "blurry, low quality, static",
-    "width": 768,
-    "height": 432,
-    "video_length": 101,  # 帧数
+    "prompt": "Two soldiers speaking at the battleground.",  # 匹配原版测试
+    "negative_prompt": "",  # 原版使用空字符串
+    "width": 832,  # 原版multitalk分辨率
+    "height": 480,  # 原版multitalk分辨率
+    "video_length": 129,  # 原版multitalk帧数
     "fps": 25,
-    "seed": 42,
-    "num_inference_steps": 30,
-    "guidance_scale": 7.0,
-    "flow_shift": 5.0,
-    "embedded_guidance_scale": 5.0,
-    "audio_guidance_scale": 3.0,
+    "seed": 5730212,  # 匹配原版测试种子
+    "num_inference_steps": 20,  # 原版使用60步
+    "guidance_scale": 5.0,  # 原版使用5
+    "flow_shift": 7.0,  # 原版使用7
+    "embedded_guidance_scale": 6.0,  # 原版使用6
+    "audio_guidance_scale": 4.0,  # 原版使用4
     
     # 高级参数
     "VAE_tile_size": None,  # 自动调整
@@ -78,17 +77,14 @@ def extract_audio_from_video(video_path, sr=16000):
             return audio
 
 def load_multitalk_model():
-    """加载 MultiTalk 模型"""
+    """加载原版 MultiTalk 480p 模型"""
     global wan_model
     
-    print("正在加载 MultiTalk 模型...")
+    print("正在加载原版 MultiTalk 480p 模型...")
     
-    # 检查必需的模型文件
+    # 原版multitalk使用的模型文件（单个主模型文件）
     model_files = {
-        "主模型": "Wan14BT2VFusioniX_quanto_bf16_int8.safetensors",
-        "Vace模块": "wan2.1_Vace_14B_module_quanto_mbf16_int8.safetensors", 
-        "MultiTalk模块": "wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors",
-        "Fantasy模块": "fantasy_proj_model.safetensors",
+        "主模型": "wan2.1_image2video_480p_14B_quanto_mbf16_int8.safetensors",  # 原版multitalk模型文件
         "VAE": "Wan2.1_VAE.safetensors",
     }
     
@@ -111,22 +107,18 @@ def load_multitalk_model():
         return False
     
     try:
-        # 使用 i2v 配置
+        # 使用 i2v 配置但需要添加 multitalk_output_dim
         cfg = WAN_CONFIGS['i2v-14B']
         
-        # 模型文件列表
-        complete_model_list = [
-            f"ckpts/{model_files['主模型']}",
-            f"ckpts/{model_files['Vace模块']}",
-            f"ckpts/{model_files['MultiTalk模块']}",
-            f"ckpts/{model_files['Fantasy模块']}"
-        ]
+        # 模型文件（原版multitalk只需要一个主模型文件）
+        model_filename = f"ckpts/{model_files['主模型']}"
         
-        # 模型定义
+        # 模型定义 - 原版multitalk配置
         temp_model_def = {
-            "name": "Vace Multitalk FusioniX 14B",
-            "architecture": "vace_multitalk_14B", 
-            "modules": ["vace_14B", "multitalk"],
+            "name": "MultiTalk 480p",
+            "architecture": "multitalk", 
+            "modules": [],  # 原版multitalk没有额外模块
+            "multitalk_output_dim": 768,  # 这个参数启用multitalk功能
             "auto_quantize": True
         }
         
@@ -134,10 +126,10 @@ def load_multitalk_model():
         wan_model = WanAny2V(
             config=cfg,
             checkpoint_dir="ckpts",
-            model_filename=complete_model_list,
+            model_filename=[model_filename],  # 单个模型文件
             model_type=CONFIG["model_type"],
             model_def=temp_model_def,
-            base_model_type="vace_multitalk_14B",
+            base_model_type="multitalk",  # 使用原版multitalk
             text_encoder_filename=text_encoder_file,
             quantizeTransformer=False,  # 模型已经量化
             dtype=torch.bfloat16,
@@ -145,7 +137,7 @@ def load_multitalk_model():
             mixed_precision_transformer=False
         )
         
-        print("✅ MultiTalk 模型加载成功")
+        print("✅ 原版 MultiTalk 480p 模型加载成功")
         return True
         
     except Exception as e:
@@ -165,8 +157,8 @@ def generate_video():
     
     try:
         # 检查音频文件
-        audio_path1 = CONFIG["audio_file1"] if os.path.exists(CONFIG["audio_file1"]) else None
-        audio_path2 = CONFIG["audio_file2"] if os.path.exists(CONFIG["audio_file2"]) else None
+        audio_path1 = CONFIG["audio_file1"] if CONFIG["audio_file1"] and os.path.exists(CONFIG["audio_file1"]) else None
+        audio_path2 = CONFIG["audio_file2"] if CONFIG["audio_file2"] and os.path.exists(CONFIG["audio_file2"]) else None
         
         if audio_path1 is None:
             print(f"❌ 音频文件1不存在: {CONFIG['audio_file1']}")
@@ -259,7 +251,6 @@ def generate_video():
         start_image = Image.new('RGB', (CONFIG["width"], CONFIG["height"]), color=(0, 0, 0))
         
         # 按照 wgp.py 的方式转换为张量格式 [C, H, W]，范围 [-1, 1]
-        # 先创建 float32，然后转换为 bfloat16 以匹配模型期望
         image_start = torch.from_numpy(np.array(start_image).astype(np.float32)).div_(127.5).sub_(1.).movedim(-1, 0)
         # image_start = image_start.to(torch.bfloat16)  # 转换为 bfloat16 匹配模型
         print(f"✅ 起始图像张量已创建: {image_start.shape}, dtype: {image_start.dtype}")
@@ -279,27 +270,46 @@ def generate_video():
         # 生成视频
         print(f"开始生成视频: {CONFIG['width']}x{CONFIG['height']}, {CONFIG['video_length']}帧")
         
+        # 创建 pre_video_guide (原版multitalk需要此参数)
+        pre_video_guide = image_start.unsqueeze(1)  # 从 [3, H, W] 转为 [3, 1, H, W]
+        print(f"✅ pre_video_guide 已创建: {pre_video_guide.shape}")
+        
+        # 按照wgp.py中的方式调用原版multitalk
         samples = wan_model.generate(
             input_prompt=CONFIG["prompt"],
             n_prompt=CONFIG["negative_prompt"],
+            image_start=image_start,  # 起始图像张量
+            pre_video_guide=pre_video_guide,  # 原版必需参数
             width=CONFIG["width"],
             height=CONFIG["height"],
             frame_num=CONFIG["video_length"],
             batch_size=1,
             seed=CONFIG["seed"],
+            denoising_strength=1.0,  # 原版设置
+            shift=CONFIG["flow_shift"],
+            sample_solver="euler",  # 原版使用euler
             sampling_steps=CONFIG["num_inference_steps"],
             guide_scale=CONFIG["guidance_scale"],
-            shift=CONFIG["flow_shift"],
             guide2_scale=CONFIG["embedded_guidance_scale"],
+            embedded_guidance_scale=CONFIG["embedded_guidance_scale"],
             audio_cfg_scale=CONFIG["audio_guidance_scale"],
             audio_proj=audio_proj,
             speakers_bboxes=speakers_bboxes,
-            token_ref_target_masks=token_ref_target_masks,
-            image_start=image_start,  # 使用正确的参数名提供起始图像张量
+            # 原版multitalk的关键参数
             model_type="multitalk",
-            sample_solver="unipc",
+            model_mode=None,
+            prefix_frames_count=1,  # 原版使用1
             VAE_tile_size=vae_tile_size,
             joint_pass=joint_pass,
+            apg_switch=0,
+            cfg_star_switch=0,  # 原版使用0
+            cfg_zero_step=-1,  # 原版使用-1
+            NAG_scale=1,  # 原版使用1
+            NAG_tau=3.5,
+            NAG_alpha=0.5,
+            enable_RIFLEx=False,  # 原版设置
+            slg_start_perc=10,  # 原版设置
+            slg_end_perc=90,  # 原版设置
             callback=progress_callback if CONFIG["num_inference_steps"] > 10 else None
         )
         
