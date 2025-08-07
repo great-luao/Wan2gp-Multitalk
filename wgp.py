@@ -4840,6 +4840,53 @@ def generate_video(
                 print(f"  NAG_alpha: {NAG_alpha}")
                 print(f"  video_prompt_type: {video_prompt_type}")
                 print(f"  image_mode: {image_mode}")
+                
+                print("-" * 40)
+                print("Additional Generate Parameters:")
+                print(f"  fit_into_canvas: {fit_canvas == 1}")
+                print(f"  callback: {callback is not None}")
+                print(f"  slg_start_computed: {slg_start_perc/100}")
+                print(f"  slg_end_computed: {slg_end_perc/100}")
+                print(f"  audio_proj_split: {type(audio_proj_split)} length={len(audio_proj_split) if audio_proj_split else 0}")
+                if audio_proj_split:
+                    for i, proj in enumerate(audio_proj_split):
+                        if proj is not None and hasattr(proj, 'shape'):
+                            print(f"    audio_proj_split[{i}].shape: {proj.shape}")
+                        elif proj is not None:
+                            print(f"    audio_proj_split[{i}]: {type(proj)}")
+                print(f"  audio_scale: {audio_scale}")
+                print(f"  audio_context_lens: {audio_context_lens}")
+                print(f"  context_scale: {context_scale}")
+                print("  causal_block_size: 5")
+                print("  causal_attention: True")
+                print(f"  overlapped_latents: {type(overlapped_latents) if overlapped_latents else None}")
+                if overlapped_latents is not None and hasattr(overlapped_latents, 'shape'):
+                    print(f"    overlapped_latents.shape: {overlapped_latents.shape}")
+                print(f"  return_latent_slice: {return_latent_slice}")
+                print(f"  sliding_window_overlap_noise: {sliding_window_overlap_noise}")
+                print(f"  sliding_window_color_correction_strength: {sliding_window_color_correction_strength}")
+                print(f"  conditioning_latents_size: {conditioning_latents_size}")
+                print(f"  keep_frames_parsed: {keep_frames_parsed}")
+                print(f"  model_filename_for_generate: {model_filename}")
+                print(f"  base_model_type_for_generate: {base_model_type}")
+                print(f"  loras_slists: {type(loras_slists) if loras_slists else None}")
+                if speakers_bboxes:
+                    print(f"  speakers_bboxes: {speakers_bboxes}")
+                else:
+                    print("  speakers_bboxes: None")
+                print(f"  offloadobj: {type(offloadobj)}")
+                
+                # 检查所有传递给generate的参数的类型和值
+                print("-" * 40)
+                print("Parameter Type Verification:")
+                print(f"  prompt type: {type(prompt)}")
+                print(f"  image_start_tensor type: {type(image_start_tensor)} shape: {image_start_tensor.shape if image_start_tensor is not None else None}")
+                print(f"  image_end_tensor type: {type(image_end_tensor)} shape: {image_end_tensor.shape if image_end_tensor is not None else None}")
+                print(f"  src_video type: {type(src_video)} length: {len(src_video) if src_video else 0}")
+                print(f"  src_ref_images type: {type(src_ref_images)} length: {len(src_ref_images) if src_ref_images else 0}")
+                print(f"  src_mask type: {type(src_mask)} length: {len(src_mask) if src_mask else 0}")
+                print(f"  pre_video_guide type: {type(pre_video_guide)} shape: {pre_video_guide.shape if pre_video_guide is not None else None}")
+                
                 print("=" * 80)
             except Exception as e:
                 print(f"Error printing parameters: {e}")
