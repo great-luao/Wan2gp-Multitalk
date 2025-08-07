@@ -41,7 +41,7 @@ CONFIG = {
     "video_length": 129,  # 原版multitalk帧数
     "fps": 25,
     "seed": 5730212,  # 匹配原版测试种子
-    "num_inference_steps": 20,  # 原版使用60步
+    "num_inference_steps": 60,  # 原版使用60步
     "guidance_scale": 5.0,  # 原版使用5
     "flow_shift": 7.0,  # 原版使用7
     "embedded_guidance_scale": 6.0,  # 原版使用6
@@ -295,43 +295,129 @@ def generate_video():
         pre_video_guide = image_start.unsqueeze(1)  # 从 [3, H, W] 转为 [3, 1, H, W]
         print(f"✅ pre_video_guide 已创建: {pre_video_guide.shape}")
         
-        # 按照wgp.py中的方式调用原版multitalk
+        # 打印完整的生成参数（完全匹配原版 wgp.py 的调试输出）
+        try:
+            print("=" * 80)
+            print("WAN Model Generate Parameters:")
+            print(f"  prompt: {CONFIG['prompt']}")
+            print(f"  frame_num: {CONFIG['video_length']}")
+            print("  batch_size: 1")
+            print(f"  height: {CONFIG['height']}")
+            print(f"  width: {CONFIG['width']}")
+            print("  denoising_strength: 1.0")
+            print(f"  shift: {CONFIG['flow_shift']}")
+            print("  sample_solver: euler")
+            print(f"  sampling_steps: {CONFIG['num_inference_steps']}")
+            print(f"  guide_scale: {CONFIG['guidance_scale']}")
+            print(f"  guide2_scale: {CONFIG['embedded_guidance_scale']}")
+            print("  switch_threshold: 0")
+            print(f"  embedded_guidance_scale: {CONFIG['embedded_guidance_scale']}")
+            print(f"  negative_prompt: {CONFIG['negative_prompt']}")
+            print(f"  seed: {CONFIG['seed']}")
+            print("  fit_into_canvas: False")
+            print("  model_mode: None")
+            print("  model_type: multitalk")
+            print("  model_filename: ['ckpts/wan2.1_image2video_480p_14B_quanto_mbf16_int8.safetensors', 'ckpts/wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors']")
+            print(f"  fps: {CONFIG['fps']}")
+            print("  window_no: 1")
+            print("  prefix_frames_count: 1")
+            print(f"  image_start_tensor.shape: {image_start.shape}")
+            print(f"  pre_video_guide.shape: {pre_video_guide.shape}")
+            print("  audio_guide: enabled")
+            print(f"  audio_guidance_scale: {CONFIG['audio_guidance_scale']}")
+            print("  enable_RIFLEx: False")
+            print(f"  VAE_tile_size: {vae_tile_size}")
+            print(f"  joint_pass: {joint_pass}")
+            print("  slg_layers: None")
+            print("  slg_start_perc: 10")
+            print("  slg_end_perc: 90")
+            print("  apg_switch: 0")
+            print("  cfg_star_switch: 0")
+            print("  cfg_zero_step: -1")
+            print("  NAG_scale: 1")
+            print("  NAG_tau: 3.5")
+            print("  NAG_alpha: 0.5")
+            print("  video_prompt_type: ")
+            print("  image_mode: 0")
+            print("  causal_block_size: 5")
+            print("  causal_attention: True")
+            print("  overlapped_latents: None")
+            print("  return_latent_slice: None")
+            print("  overlap_noise: 0")
+            print("  color_correction_strength: 0")
+            print("  conditioning_latents_size: None")
+            print("  keep_frames_parsed: []")
+            print("  loras_slists: None")
+            print("  audio_scale: None")
+            print("  audio_context_lens: None")
+            print("  context_scale: None")
+            print(f"  speakers_bboxes: {speakers_bboxes}")
+            print("=" * 80)
+        except Exception as e:
+            print(f"Error printing parameters: {e}")
+        
+        # 按照wgp.py中的方式调用原版multitalk (完整参数匹配)
         samples = wan_model.generate(
             input_prompt=CONFIG["prompt"],
-            n_prompt=CONFIG["negative_prompt"],
-            image_start=image_start,  # 起始图像张量
-            pre_video_guide=pre_video_guide,  # 原版必需参数
-            width=CONFIG["width"],
-            height=CONFIG["height"],
+            image_start=image_start,
+            image_end=None,
+            input_frames=None,   
+            input_ref_images=None,
+            input_masks=None,
+            input_video=pre_video_guide,
+            denoising_strength=1.0,
+            prefix_frames_count=1,
             frame_num=CONFIG["video_length"],
             batch_size=1,
-            seed=CONFIG["seed"],
-            denoising_strength=1.0,  # 原版设置
+            height=CONFIG["height"],
+            width=CONFIG["width"],
+            fit_into_canvas=False,
             shift=CONFIG["flow_shift"],
-            sample_solver="euler",  # 原版使用euler
+            sample_solver="euler",
             sampling_steps=CONFIG["num_inference_steps"],
             guide_scale=CONFIG["guidance_scale"],
             guide2_scale=CONFIG["embedded_guidance_scale"],
+            switch_threshold=0,
             embedded_guidance_scale=CONFIG["embedded_guidance_scale"],
-            audio_cfg_scale=CONFIG["audio_guidance_scale"],
-            audio_proj=audio_proj,
-            speakers_bboxes=speakers_bboxes,
-            # 原版multitalk的关键参数
-            model_type="multitalk",
-            model_mode=None,
-            prefix_frames_count=1,  # 原版使用1
+            n_prompt=CONFIG["negative_prompt"],
+            seed=CONFIG["seed"],
+            callback=progress_callback if CONFIG["num_inference_steps"] > 10 else None,
+            enable_RIFLEx=False,
             VAE_tile_size=vae_tile_size,
             joint_pass=joint_pass,
+            slg_layers=None,
+            slg_start=10/100,
+            slg_end=90/100,
             apg_switch=0,
-            cfg_star_switch=0,  # 原版使用0
-            cfg_zero_step=-1,  # 原版使用-1
-            NAG_scale=1,  # 原版使用1
+            cfg_star_switch=0,
+            cfg_zero_step=-1,
+            audio_cfg_scale=CONFIG["audio_guidance_scale"],
+            audio_guide=None,
+            audio_guide2=None,
+            audio_proj=audio_proj,
+            audio_scale=None,
+            audio_context_lens=None,
+            context_scale=None,
+            model_mode=None,
+            causal_block_size=5,
+            causal_attention=True,
+            fps=CONFIG["fps"],
+            overlapped_latents=None,
+            return_latent_slice=None,
+            overlap_noise=0,
+            color_correction_strength=0,
+            conditioning_latents_size=None,
+            keep_frames_parsed=[],
+            model_filename=["ckpts/wan2.1_image2video_480p_14B_quanto_mbf16_int8.safetensors", 
+                           "ckpts/wan2.1_multitalk_14B_quanto_mbf16_int8.safetensors"],
+            model_type="multitalk",
+            loras_slists=None,
+            NAG_scale=1,
             NAG_tau=3.5,
             NAG_alpha=0.5,
-            enable_RIFLEx=False,  # 原版设置
-            slg_start_perc=10,  # 原版设置
-            slg_end_perc=90,  # 原版设置
-            callback=progress_callback if CONFIG["num_inference_steps"] > 10 else None
+            speakers_bboxes=speakers_bboxes,
+            image_mode=0,
+            video_prompt_type="",
         )
         
         # 保存视频
