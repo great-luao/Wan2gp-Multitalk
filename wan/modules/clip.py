@@ -544,5 +544,11 @@ class CLIPModel:
             print(f"CLIP DEBUG: model dtype: {self.dtype}")
             print(f"CLIP DEBUG: videos dtype: {videos.dtype}")
             print(f"CLIP DEBUG: videos device: {videos.device}")
+            # 查看模型参数的dtype
+            try:
+                for name, param in self.model.named_parameters():
+                    print(f"CLIP DEBUG: {name} dtype: {param.dtype}")
+            except Exception as e:
+                print(f"CLIP DEBUG: Error checking model parameters: {e}")
             out = self.model.visual(videos.to(torch.bfloat16), use_31_block=True)
             return out
