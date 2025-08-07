@@ -137,13 +137,14 @@ def load_multitalk_model():
             f"ckpts/{model_files['MultiTalk模块']}"
         ]
         
-        # 模型定义 - 完全匹配原版配置
+        # 模型定义 - 添加 URLs2 以启用双模型加载
         temp_model_def = {
             "name": "Multitalk 480p",
             "architecture": "multitalk", 
             "modules": ["multitalk"],  # 原版有multitalk模块
             "description": "The Multitalk model corresponds to the original Wan image 2 video model combined with the Multitalk module. It lets you have up to two people have a conversation.",
             "URLs": "i2v",
+            "URLs2": "multitalk",  # 添加 URLs2 以启用 transformer_switch
             "teacache_coefficients": [-302.33167, 223.948934, -52.546397, 5.8734844, -0.201973289],
             "path": "defaults/multitalk.json",
             "settings": {}

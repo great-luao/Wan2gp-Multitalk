@@ -149,14 +149,21 @@ class WanAny2V:
                 with init_empty_weights():
                     self.model = WanModel(**model_config)
                 
+                # Use to_empty() to move model structure to device first
+                self.model = self.model.to_empty(device=self.device)
+                
                 state_dict1 = load_file(model_filename[0], device=str(self.device))
                 self.model.load_state_dict(state_dict1, strict=False, assign=True)
-                self.model = self.model.to(self.device).to(dtype)
+                # Only convert dtype, not device (already on correct device)
+                self.model = self.model.to(dtype)
                 
                 # Load second model for multitalk
                 print(f"Loading model 2: {model_filename[1]}")
                 with init_empty_weights():
                     self.model2 = WanModel(**model_config)
+                
+                # Use to_empty() to move model structure to device first
+                self.model2 = self.model2.to_empty(device=self.device)
                 
                 state_dict2 = load_file(model_filename[1], device=str(self.device))
                 
@@ -170,7 +177,8 @@ class WanAny2V:
                 
                 print(f"Shared {len(shared_keys)} layers between models")
                 self.model2.load_state_dict(state_dict2, strict=False, assign=True)
-                self.model2 = self.model2.to(self.device).to(dtype)
+                # Only convert dtype, not device (already on correct device)
+                self.model2 = self.model2.to(dtype)
                 
             else:
                 # Single model loading
@@ -178,12 +186,16 @@ class WanAny2V:
                 with init_empty_weights():
                     self.model = WanModel(**model_config)
                 
+                # Use to_empty() to move model structure to device first
+                self.model = self.model.to_empty(device=self.device)
+                
                 if isinstance(model_filename, list):
                     model_filename = model_filename[0]
                     
                 state_dict = load_file(model_filename, device=str(self.device))
                 self.model.load_state_dict(state_dict, strict=False, assign=True)
-                self.model = self.model.to(self.device).to(dtype)
+                # Only convert dtype, not device (already on correct device)
+                self.model = self.model.to(dtype)
                 self.model2 = None
             
             # Print memory usage
@@ -718,7 +730,7 @@ class WanAny2V:
         else:
             target_shape = (self.vae.model.z_dim, lat_frames + ref_images_count, height // self.vae_stride[1], width // self.vae_stride[2])
 
-        if multitalk and audio_proj != None:
+        if multitalk and audio_proj is not None:
             from wan.multitalk.multitalk import get_target_masks
             audio_proj = [audio.to(self.dtype) for audio in audio_proj]
             human_no = len(audio_proj[0])
