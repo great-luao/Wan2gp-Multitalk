@@ -540,6 +540,7 @@ class CLIPModel:
         # forward
         with torch.amp.autocast(dtype=self.dtype, device_type="cuda"):
             # DEBUG: check the dtype of model and videos
+            print(f"CLIP DEBUG: clip device: {self.device}")
             print(f"CLIP DEBUG: model dtype: {self.dtype}")
             print(f"CLIP DEBUG: videos dtype: {videos.dtype}")
             print(f"CLIP DEBUG: videos device: {videos.device}")
