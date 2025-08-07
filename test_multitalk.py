@@ -38,10 +38,10 @@ CONFIG = {
     "negative_prompt": "",  # 原版使用空字符串
     "width": 832,  # 原版multitalk分辨率
     "height": 480,  # 原版multitalk分辨率
-    "video_length": 129,  # 原版multitalk帧数
+    "video_length": 129,  # multitalk帧数，越长越久
     "fps": 25,
     "seed": 5730212,  # 匹配原版测试种子
-    "num_inference_steps": 60,  # 原版使用60步
+    "num_inference_steps": 10,  # 推理步数，越长时间越久，但效果越好
     "guidance_scale": 5.0,  # 原版使用5
     "flow_shift": 7.0,  # 原版使用7
     "embedded_guidance_scale": 6.0,  # 原版使用6
@@ -271,10 +271,10 @@ def generate_video():
         
         # 按照 wgp.py 的方式转换为张量格式 [C, H, W]，范围 [-1, 1]
         image_start = torch.from_numpy(np.array(start_image).astype(np.float32)).div_(127.5).sub_(1.).movedim(-1, 0)
-        # image_start = image_start.to(torch.bfloat16)  # 转换为 bfloat16 匹配模型
-        print(f"✅ 起始图像张量已创建: {image_start.shape}, dtype: {image_start.dtype}")
-        # put image_start to gpu
-        # image_start = image_start.to(device)
+        
+        # 移动到正确的设备，但保持 float32（在 generate 中会自动转换）
+        image_start = image_start.to(device)
+        print(f"✅ 起始图像张量已创建: {image_start.shape}, dtype: {image_start.dtype}, device: {image_start.device}")
         
         # 创建临时目录用于后续清理
         temp_dir = f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"

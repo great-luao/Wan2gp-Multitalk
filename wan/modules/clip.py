@@ -39,13 +39,11 @@ def pos_interpolate(pos, seq_len):
 
 
 class QuickGELU(nn.Module):
-
     def forward(self, x):
         return x * torch.sigmoid(1.702 * x)
 
 
 class LayerNorm(nn.LayerNorm):
-
     def forward(self, x):
         return super().forward(x.float()).type_as(x)
 
@@ -437,13 +435,8 @@ def _clip(pretrained_name=None,
           dtype=torch.float32,
           device='cpu',
           **kwargs):
-    # init a model on device
-    device ="cpu"
-    with torch.device(device):
-        model = model_cls(**kwargs)
-
-    # set device
-    # model = model.to(dtype=dtype, device=device)
+    # Create model (device will be set during weight loading)
+    model = model_cls(**kwargs)
     output = (model,)
 
     # init transforms
@@ -498,7 +491,8 @@ def clip_xlm_roberta_vit_h_14(
 class CLIPModel:
 
     def __init__(self, dtype, device, checkpoint_path, tokenizer_path):
-        self.dtype = dtype
+        # Model is always loaded as bf16, but keep dtype for autocast compatibility
+        self.dtype = torch.bfloat16  # Override since we load bf16 model
         self.device = device
         self.checkpoint_path = checkpoint_path
         self.tokenizer_path = tokenizer_path
@@ -508,16 +502,21 @@ class CLIPModel:
 
         with init_empty_weights():
             self.model, self.transforms = clip_xlm_roberta_vit_h_14(
-                return_transforms=True,
-                dtype=dtype,
-                device=device)
+                return_transforms=True)
         self.model = self.model.eval().requires_grad_(False)
-        logging.info(f'loading {checkpoint_path}')
-        from mmgp import offload
-        # self.model.load_state_dict(
-        #     torch.load(checkpoint_path, map_location='cpu'), assign= True)
-
-        offload.load_model_data(self.model, checkpoint_path.replace(".pth", "-bf16.safetensors"), writable_tensors= False)
+        
+        # Load bf16 model weights directly to target device
+        logging.info(f'Loading {checkpoint_path} to {self.device}')
+        from safetensors.torch import load_file
+        safetensors_path = checkpoint_path.replace(".pth", "-bf16.safetensors")
+        
+        # Load state dict directly to device (safetensors handles device placement efficiently)
+        state_dict = load_file(safetensors_path, device=str(self.device))
+        self.model.load_state_dict(state_dict)
+        
+        # Verify model placement
+        sample_param = next(self.model.parameters())
+        print(f"CLIP DEBUG: Model loaded - device: {sample_param.device}, dtype: {sample_param.dtype}")
 
         # init tokenizer
         self.tokenizer = HuggingfaceTokenizer(
@@ -525,7 +524,7 @@ class CLIPModel:
             seq_len=self.model.max_text_len - 2,
             clean='whitespace')
 
-    def visual(self, videos,):
+    def visual(self, videos):
         # preprocess
         size = (self.model.image_size,) * 2
         videos = torch.cat([
@@ -537,18 +536,10 @@ class CLIPModel:
         ])
         videos = self.transforms.transforms[-1](videos.mul_(0.5).add_(0.5))
 
-        # forward
+        # Move to model device and ensure proper dtype for autocast
+        videos = videos.to(device=self.device)
+        
+        # Forward pass with autocast (model is bf16, LayerNorm uses float32)
         with torch.amp.autocast(dtype=self.dtype, device_type="cuda"):
-            # DEBUG: check the dtype of model and videos
-            print(f"CLIP DEBUG: clip device: {self.device}")
-            print(f"CLIP DEBUG: model dtype: {self.dtype}")
-            print(f"CLIP DEBUG: videos dtype: {videos.dtype}")
-            print(f"CLIP DEBUG: videos device: {videos.device}")
-            # 查看模型参数的dtype
-            try:
-                for name, param in self.model.named_parameters():
-                    print(f"CLIP DEBUG: {name} dtype: {param.dtype}")
-            except Exception as e:
-                print(f"CLIP DEBUG: Error checking model parameters: {e}")
-            out = self.model.visual(videos.to(torch.bfloat16), use_31_block=True)
+            out = self.model.visual(videos, use_31_block=True)
             return out
