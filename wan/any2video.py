@@ -122,6 +122,9 @@ class WanAny2V:
                 device=self.device,
                 checkpoint_path=clip_checkpoint_path,
                 tokenizer_path=clip_tokenizer_path)
+            # GPU memory usage
+            print(f"🔍 GPU: CLIP memory usage: {self.clip.model.parameters().memory_allocated() / 1024 / 1024:.2f} MB")
+            print(f"🔍 GPU: Current memory usage: {torch.cuda.memory_allocated() / 1024 / 1024:.2f} MB")
 
         self.vae_stride = config.vae_stride
         self.patch_size = config.patch_size 
@@ -130,7 +133,10 @@ class WanAny2V:
         self.vae = WanVAE(
             vae_pth=vae_path, dtype= VAE_dtype,
             device=self.device)
-        
+        # GPU memory usage
+        print(f"🔍 GPU: VAE memory usage: {self.vae.model.parameters().memory_allocated() / 1024 / 1024:.2f} MB")
+        print(f"🔍 GPU: Current memory usage: {torch.cuda.memory_allocated() / 1024 / 1024:.2f} MB")
+
         # Transformer model
         base_config_file = f"configs/{base_model_type}.json"
         forcedConfigPath = base_config_file if len(model_filename) > 1 else None
