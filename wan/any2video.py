@@ -126,22 +126,91 @@ class WanAny2V:
         base_config_file = f"configs/{base_model_type}.json"
         forcedConfigPath = base_config_file if len(model_filename) > 1 else None
         
-        if self.transformer_switch:
-            shared_modules= {}
-            self.model = offload.fast_load_transformers_model(model_filename[:1], modules = model_filename[2:], modelClass=WanModel,do_quantize= quantizeTransformer and not save_quantized, writable_tensors= False, defaultConfigPath=base_config_file , forcedConfigPath= forcedConfigPath,  return_shared_modules= shared_modules)
-            self.model2 = offload.fast_load_transformers_model(model_filename[1:2], modules = shared_modules, modelClass=WanModel,do_quantize= quantizeTransformer and not save_quantized, writable_tensors= False, defaultConfigPath=base_config_file , forcedConfigPath= forcedConfigPath)
-            shared_modules = None
-        else:
-            self.model = offload.fast_load_transformers_model(model_filename, modelClass=WanModel,do_quantize= quantizeTransformer and not save_quantized, writable_tensors= False, defaultConfigPath=base_config_file , forcedConfigPath= forcedConfigPath)
+        # GPU-rich mode: Load models directly to GPU
+        use_gpu_rich_mode = offload.shared_state.get("gpu_rich_mode", False)
         
-        # self.model = offload.load_model_data(self.model, xmodel_filename )
-        # offload.load_model_data(self.model, "c:/temp/Phantom-Wan-1.3B.pth")
-
-        self.model.lock_layers_dtypes(torch.float32 if mixed_precision_transformer else dtype)
-        offload.change_dtype(self.model, dtype, True)
-        if self.model2 is not None:
+        if use_gpu_rich_mode:
+            print("🚀 Using GPU-rich mode: Loading models directly to GPU")
+            from safetensors.torch import load_file
+            from accelerate import init_empty_weights
+            import json
+            
+            # Load config
+            config_path = forcedConfigPath or base_config_file
+            if not os.path.isabs(config_path):
+                config_path = os.path.join(os.path.dirname(__file__), "..", config_path)
+            
+            with open(config_path, 'r') as f:
+                model_config = json.load(f)
+            
+            if self.transformer_switch:
+                # Load first model
+                print(f"Loading model 1: {model_filename[0]}")
+                with init_empty_weights():
+                    self.model = WanModel(**model_config)
+                
+                state_dict1 = load_file(model_filename[0], device=str(self.device))
+                self.model.load_state_dict(state_dict1, strict=False, assign=True)
+                self.model = self.model.to(self.device).to(dtype)
+                
+                # Load second model for multitalk
+                print(f"Loading model 2: {model_filename[1]}")
+                with init_empty_weights():
+                    self.model2 = WanModel(**model_config)
+                
+                state_dict2 = load_file(model_filename[1], device=str(self.device))
+                
+                # Share common layers between models to save memory
+                shared_keys = []
+                for key in state_dict1.keys():
+                    if key in state_dict2 and not ("audio" in key or "multitalk" in key):
+                        # Use weights from model1 for shared layers
+                        state_dict2[key] = state_dict1[key]
+                        shared_keys.append(key)
+                
+                print(f"Shared {len(shared_keys)} layers between models")
+                self.model2.load_state_dict(state_dict2, strict=False, assign=True)
+                self.model2 = self.model2.to(self.device).to(dtype)
+                
+            else:
+                # Single model loading
+                print(f"Loading model: {model_filename}")
+                with init_empty_weights():
+                    self.model = WanModel(**model_config)
+                
+                if isinstance(model_filename, list):
+                    model_filename = model_filename[0]
+                    
+                state_dict = load_file(model_filename, device=str(self.device))
+                self.model.load_state_dict(state_dict, strict=False, assign=True)
+                self.model = self.model.to(self.device).to(dtype)
+                self.model2 = None
+            
+            # Print memory usage
+            print(f"🔍 GPU memory after transformer loading: {torch.cuda.memory_allocated() / 1024 / 1024:.2f} MB")
+            
+        else:
+            # Original offload mode for GPU-poor situations
+            print("Using offload mode for GPU-poor situation")
+            if self.transformer_switch:
+                shared_modules= {}
+                self.model = offload.fast_load_transformers_model(model_filename[:1], modules = model_filename[2:], modelClass=WanModel,do_quantize= quantizeTransformer and not save_quantized, writable_tensors= False, defaultConfigPath=base_config_file , forcedConfigPath= forcedConfigPath,  return_shared_modules= shared_modules)
+                self.model2 = offload.fast_load_transformers_model(model_filename[1:2], modules = shared_modules, modelClass=WanModel,do_quantize= quantizeTransformer and not save_quantized, writable_tensors= False, defaultConfigPath=base_config_file , forcedConfigPath= forcedConfigPath)
+                shared_modules = None
+            else:
+                self.model = offload.fast_load_transformers_model(model_filename, modelClass=WanModel,do_quantize= quantizeTransformer and not save_quantized, writable_tensors= False, defaultConfigPath=base_config_file , forcedConfigPath= forcedConfigPath)
+        
+        # Lock dtypes for all modes
+        if hasattr(self.model, 'lock_layers_dtypes'):
+            self.model.lock_layers_dtypes(torch.float32 if mixed_precision_transformer else dtype)
+        if self.model2 is not None and hasattr(self.model2, 'lock_layers_dtypes'):
             self.model2.lock_layers_dtypes(torch.float32 if mixed_precision_transformer else dtype)
-            offload.change_dtype(self.model2, dtype, True)
+            
+        # Change dtype if using offload mode
+        if not use_gpu_rich_mode:
+            offload.change_dtype(self.model, dtype, True)
+            if self.model2 is not None:
+                offload.change_dtype(self.model2, dtype, True)
 
         # offload.save_model(self.model, "wan2.1_text2video_1.3B_mbf16.safetensors", do_quantize= False, config_file_path=base_config_file, filter_sd=sd)
         # offload.save_model(self.model, "wan2.2_image2video_14B_low_mbf16.safetensors",  config_file_path=base_config_file)

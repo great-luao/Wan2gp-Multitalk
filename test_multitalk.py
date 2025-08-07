@@ -50,6 +50,9 @@ CONFIG = {
     # 高级参数
     "VAE_tile_size": None,  # 自动调整
     "joint_pass": None,     # 自动调整
+    
+    # GPU模式设置
+    "gpu_rich_mode": True,  # 启用GPU-rich模式，直接加载到GPU
 }
 
 # 全局变量
@@ -120,6 +123,11 @@ def load_multitalk_model():
         return False
     
     try:
+        # 启用GPU-rich模式
+        from mmgp import offload
+        offload.shared_state["gpu_rich_mode"] = CONFIG["gpu_rich_mode"]
+        print(f"✅ GPU-rich模式: {'启用' if CONFIG['gpu_rich_mode'] else '禁用'}")
+        
         # 使用 i2v 配置但需要添加 multitalk_output_dim
         cfg = WAN_CONFIGS['i2v-14B']
         
