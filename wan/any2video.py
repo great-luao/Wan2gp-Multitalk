@@ -1,24 +1,12 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
-import gc
-import logging
-import math
 import os
-import random
-import sys
-import types
-from contextlib import contextmanager
-from functools import partial
 from mmgp import offload
 import torch
-import torch.nn as nn
-import torch.cuda.amp as amp
-import torch.distributed as dist
 import numpy as np
 from tqdm import tqdm
 from PIL import Image
 import torchvision.transforms.functional as TF
 import torch.nn.functional as F
-from .distributed.fsdp import shard_model
 from .modules.model import WanModel
 from .modules.t5 import T5EncoderModel
 from .modules.vae import WanVAE
@@ -29,9 +17,8 @@ from .utils.fm_solvers_unipc import FlowUniPCMultistepScheduler
 from wan.modules.posemb_layers import get_rotary_pos_embed
 from .utils.vace_preprocessor import VaceVideoProcessor
 from wan.utils.basic_flowmatch import FlowMatchScheduler
-from wan.utils.utils import get_outpainting_frame_location, resize_lanczos, calculate_new_dimensions
+from wan.utils.utils import get_outpainting_frame_location, resize_lanczos
 from .multitalk.multitalk_utils import MomentumBuffer, adaptive_projected_guidance, match_and_blend_colors, match_and_blend_colors_with_mask
-from mmgp import safetensors2
 
 def optimized_scale(positive_flat, negative_flat):
 
@@ -123,8 +110,7 @@ class WanAny2V:
                 checkpoint_path=clip_checkpoint_path,
                 tokenizer_path=clip_tokenizer_path)
             # GPU memory usage
-            print(f"🔍 GPU: CLIP memory usage: {self.clip.model.parameters().memory_allocated() / 1024 / 1024:.2f} MB")
-            print(f"🔍 GPU: Current memory usage: {torch.cuda.memory_allocated() / 1024 / 1024:.2f} MB")
+            print(f"🔍 GPU: Current memory usage after CLIP loading: {torch.cuda.memory_allocated() / 1024 / 1024:.2f} MB")
 
         self.vae_stride = config.vae_stride
         self.patch_size = config.patch_size 
@@ -134,8 +120,7 @@ class WanAny2V:
             vae_pth=vae_path, dtype= VAE_dtype,
             device=self.device)
         # GPU memory usage
-        print(f"🔍 GPU: VAE memory usage: {self.vae.model.parameters().memory_allocated() / 1024 / 1024:.2f} MB")
-        print(f"🔍 GPU: Current memory usage: {torch.cuda.memory_allocated() / 1024 / 1024:.2f} MB")
+        print(f"🔍 GPU: Current memory usage after VAE loading: {torch.cuda.memory_allocated() / 1024 / 1024:.2f} MB")
 
         # Transformer model
         base_config_file = f"configs/{base_model_type}.json"
@@ -259,7 +244,6 @@ class WanAny2V:
         return [torch.cat([zz, mm], dim=0) for zz, mm in zip(z, m)]
 
     def fit_image_into_canvas(self, ref_img, image_size, canvas_tf_bg, device, fill_max = False, outpainting_dims = None, return_mask = False):
-        from wan.utils.utils import save_image
         ref_width, ref_height = ref_img.size
         if (ref_height, ref_width) == image_size and outpainting_dims  == None:
             ref_img = TF.to_tensor(ref_img).sub_(0.5).div_(0.5).unsqueeze(1)
@@ -596,7 +580,7 @@ class WanAny2V:
             y = torch.concat([msk, lat_y])
             lat_y = None
             kwargs.update({ 'y': y})
-            if not clip_context is None:
+            if clip_context is not None:
                 kwargs.update({'clip_fea': clip_context})
 
         # Video 2 Video
@@ -689,7 +673,7 @@ class WanAny2V:
 
         # Steps Skipping
         cache_type = self.model.enable_cache 
-        if cache_type != None:
+        if cache_type is not None:
             x_count = 3 if multitalk else 2
             self.model.previous_residual = [None] * x_count
             if cache_type == "tea":
@@ -699,7 +683,7 @@ class WanAny2V:
                 self.model.accumulated_err, self.model.accumulated_steps, self.model.accumulated_ratio  = [0.0] * x_count, [0] * x_count, [1.0] * x_count
                 self.model.one_for_all = x_count > 2
 
-        if callback != None:
+        if callback is not None:
             callback(-1, None, True)
 
         offload.shared_state["_chipmunk"] =  False
@@ -709,7 +693,7 @@ class WanAny2V:
 
         # init denoising
         updated_num_steps= len(timesteps)
-        if callback != None:
+        if callback is not None:
             from wan.utils.loras_mutipliers import update_loras_slists
             model_switch_step = updated_num_steps
             for i, t in enumerate(timesteps):
@@ -719,7 +703,7 @@ class WanAny2V:
             update_loras_slists(self.model, loras_slists, updated_num_steps, model_switch_step= model_switch_step)
             callback(-1, None, True, override_num_inference_steps = updated_num_steps)
 
-        if sample_scheduler != None:
+        if sample_scheduler is not None:
             scheduler_kwargs = {} if isinstance(sample_scheduler, FlowMatchScheduler) else {"generator": seed_g}
         # b, c, lat_f, lat_h, lat_w
         latents = torch.randn(batch_size, *target_shape, dtype=torch.float32, device=self.device, generator=seed_g)
