@@ -1,8 +1,6 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
 import logging
-from mmgp import offload
 import torch
-import torch.cuda.amp as amp
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
@@ -584,7 +582,7 @@ class WanVAE_(nn.Module):
         out_list = None
 
         mu, log_var = self.conv1(out).chunk(2, dim=1)
-        if scale != None:
+        if scale is not None:
             if isinstance(scale[0], torch.Tensor):
                 mu = (mu - scale[0].view(1, self.z_dim, 1, 1, 1)) * scale[1].view(
                     1, self.z_dim, 1, 1, 1)
@@ -596,7 +594,7 @@ class WanVAE_(nn.Module):
     def decode(self, z, scale=None, any_end_frame = False):
         self.clear_cache()
         # z: [b,c,t,h,w]
-        if scale != None:
+        if scale is not None:
             if isinstance(scale[0], torch.Tensor):
                 z = z / scale[1].view(1, self.z_dim, 1, 1, 1) + scale[0].view(
                     1, self.z_dim, 1, 1, 1)
@@ -765,13 +763,20 @@ def _video_vae(pretrained_path=None, z_dim=None, device='cpu', **kwargs):
     with torch.device('meta'):
         model = WanVAE_(**cfg)
 
-    from mmgp import offload
-    # load checkpoint
-    logging.info(f'loading {pretrained_path}')
-    # model.load_state_dict(
-    #     torch.load(pretrained_path, map_location=device), assign=True)
-    # offload.load_model_data(model, pretrained_path.replace(".pth", "_bf16.safetensors"), writable_tensors= False)    
-    offload.load_model_data(model, pretrained_path.replace(".pth", ".safetensors"), writable_tensors= False)    
+    # load checkpoint directly instead of using offload
+    logging.info(f'loading {pretrained_path} to {device}')
+    
+    # Load safetensors file directly
+    from safetensors.torch import load_file
+    safetensors_path = pretrained_path.replace(".pth", ".safetensors")
+    
+    # Load state dict directly to device with assign=True to avoid meta parameter warnings
+    state_dict = load_file(safetensors_path, device=str(device))
+    model.load_state_dict(state_dict, assign=True)
+    
+    # Verify model placement
+    sample_param = next(model.parameters())
+    print(f"VAE DEBUG: Model loaded - device: {sample_param.device}, dtype: {sample_param.dtype}")    
     return model
 
 
@@ -801,7 +806,8 @@ class WanVAE:
         self.model = _video_vae(
             pretrained_path=vae_pth,
             z_dim=z_dim,
-        ).to(dtype).eval() #.requires_grad_(False).to(device)
+            device=device,  # Pass device parameter to ensure correct loading
+        ).to(dtype).eval().to(device)  # Ensure model is on correct device
         self.model._model_dtype = dtype
 
     @staticmethod
@@ -832,7 +838,7 @@ class WanVAE:
         """
         videos: A list of videos each with shape [C, T, H, W].
         """
-        original_dtype = videos[0].dtype
+        # original_dtype = videos[0].dtype
         
         if tile_size > 0:
             return [ self.model.spatial_tiled_encode(u.to(self.dtype).unsqueeze(0), self.scale, tile_size, any_end_frame=any_end_frame).float().squeeze(0) for u in videos ]

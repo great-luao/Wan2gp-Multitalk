@@ -512,7 +512,7 @@ class CLIPModel:
         
         # Load state dict directly to device (safetensors handles device placement efficiently)
         state_dict = load_file(safetensors_path, device=str(self.device))
-        self.model.load_state_dict(state_dict)
+        self.model.load_state_dict(state_dict, assign=True)
         
         # Verify model placement
         sample_param = next(self.model.parameters())
