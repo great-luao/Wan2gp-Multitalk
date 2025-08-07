@@ -560,33 +560,35 @@ class WanVAE_(nn.Module):
         ## 对encode输入的x，按时间拆分为1、4、4、4....
         out_list = []
         
-        for i in range(iter_):
-            self._enc_conv_idx = [0]
-            
-            # 内存监控和清理
-            if i > 0:
-                torch.cuda.empty_cache()  # 清理未使用的GPU内存
-                print(f"🔍 GPU: Memory usage before encoder {i}: {torch.cuda.memory_allocated() / 1024 / 1024:.2f} MB")
-            
-            if i == 0:
-                result = self.encoder(
-                    x[:, :, :1, :, :],
-                    feat_cache=self._enc_feat_map,
-                    feat_idx=self._enc_conv_idx)
-            elif any_end_frame and i== iter_ -1:
-                result = self.encoder(
-                    x[:, :, -1:, :, :],
-                    feat_cache= None,
-                    feat_idx=self._enc_conv_idx)
-            else:
-                result = self.encoder(
-                    x[:, :, 1 + 4 * (i - 1):1 + 4 * i, :, :],
-                    feat_cache=self._enc_feat_map,
-                    feat_idx=self._enc_conv_idx)
-            
-            # 立即移动结果到CPU节省GPU内存
-            out_list.append(result.cpu())
-            del result
+        # 使用inference模式减少内存占用
+        with torch.inference_mode():
+            for i in range(iter_):
+                self._enc_conv_idx = [0]
+                
+                # 内存监控和清理
+                if i > 0:
+                    torch.cuda.empty_cache()  # 清理未使用的GPU内存
+                    print(f"🔍 GPU: Memory usage before encoder {i}: {torch.cuda.memory_allocated() / 1024 / 1024:.2f} MB")
+                
+                if i == 0:
+                    result = self.encoder(
+                        x[:, :, :1, :, :],
+                        feat_cache=self._enc_feat_map,
+                        feat_idx=self._enc_conv_idx)
+                elif any_end_frame and i== iter_ -1:
+                    result = self.encoder(
+                        x[:, :, -1:, :, :],
+                        feat_cache= None,
+                        feat_idx=self._enc_conv_idx)
+                else:
+                    result = self.encoder(
+                        x[:, :, 1 + 4 * (i - 1):1 + 4 * i, :, :],
+                        feat_cache=self._enc_feat_map,
+                        feat_idx=self._enc_conv_idx)
+                
+                # 立即移动结果到CPU以释放GPU内存
+                out_list.append(result.cpu())
+                del result  # 显式删除引用
 
         self.clear_cache()
         
