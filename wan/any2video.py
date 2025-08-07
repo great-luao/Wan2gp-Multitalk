@@ -472,7 +472,6 @@ class WanAny2V:
         # context_NAG = context_NAG.to(self.dtype)
         # context_NAG = torch.cat([context_NAG, context_NAG.new_zeros(text_len -context_NAG.size(0), context_NAG.size(1)) ]).unsqueeze(0) 
         
-        # from mmgp import offload
         # offloadobj.unload_all()
 
         offload.shared_state.update({"_nag_scale" : NAG_scale, "_nag_tau" : NAG_tau, "_nag_alpha":  NAG_alpha })
@@ -672,16 +671,16 @@ class WanAny2V:
         kwargs["freqs"] = freqs
 
         # Steps Skipping
-        cache_type = self.model.enable_cache 
-        if cache_type is not None:
-            x_count = 3 if multitalk else 2
-            self.model.previous_residual = [None] * x_count
-            if cache_type == "tea":
-                self.model.compute_teacache_threshold(self.model.cache_start_step, timesteps, self.model.cache_multiplier)
-            else: 
-                self.model.compute_magcache_threshold(self.model.cache_start_step, timesteps, self.model.cache_multiplier)
-                self.model.accumulated_err, self.model.accumulated_steps, self.model.accumulated_ratio  = [0.0] * x_count, [0] * x_count, [1.0] * x_count
-                self.model.one_for_all = x_count > 2
+        # cache_type = self.model.enable_cache 
+        # if cache_type is not None:
+        #     x_count = 3 if multitalk else 2
+        #     self.model.previous_residual = [None] * x_count
+        #     if cache_type == "tea":
+        #         self.model.compute_teacache_threshold(self.model.cache_start_step, timesteps, self.model.cache_multiplier)
+        #     else: 
+        #         self.model.compute_magcache_threshold(self.model.cache_start_step, timesteps, self.model.cache_multiplier)
+        #         self.model.accumulated_err, self.model.accumulated_steps, self.model.accumulated_ratio  = [0.0] * x_count, [0] * x_count, [1.0] * x_count
+        #         self.model.one_for_all = x_count > 2
 
         if callback is not None:
             callback(-1, None, True)

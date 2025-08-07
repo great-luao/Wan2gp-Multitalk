@@ -168,7 +168,7 @@ class Resample(nn.Module):
             if feat_cache is not None:
                 idx = feat_idx[0]
                 if feat_cache[idx] is None:
-                    feat_cache[idx] = x.to("cpu")  # 移到CPU节省GPU内存
+                    feat_cache[idx] = x  # 保持在GPU上
                     feat_idx[0] += 1
                 else:
 
@@ -179,7 +179,7 @@ class Resample(nn.Module):
 
                     x = self.time_conv(
                         torch.cat([feat_cache[idx][:, :, -1:, :, :], x], 2))
-                    feat_cache[idx] = cache_x.to("cpu")  # 移到CPU节省GPU内存
+                    feat_cache[idx] = cache_x  # 保持在GPU上
                     feat_idx[0] += 1
         return x
 
@@ -238,7 +238,7 @@ class ResidualBlock(nn.Module):
                     ],
                                         dim=2)
                 x = layer(x, feat_cache[idx]).to(dtype)
-                feat_cache[idx] = cache_x.to("cpu")  # 移到CPU节省GPU内存
+                feat_cache[idx] = cache_x  # 保持在GPU上
                 feat_idx[0] += 1
             else:
                 x = layer(x).to(dtype)
@@ -466,7 +466,7 @@ class Decoder3d(nn.Module):
                 ],
                                     dim=2)
             x = self.conv1(x, feat_cache[idx])
-            feat_cache[idx] = cache_x.to("cpu")  # 移到CPU节省GPU内存
+            feat_cache[idx] = cache_x  # 保持在GPU上
             del cache_x
             feat_idx[0] += 1
         else:
@@ -500,7 +500,7 @@ class Decoder3d(nn.Module):
                     ],
                                         dim=2)
                 x = layer(x, feat_cache[idx])
-                feat_cache[idx] = cache_x.to("cpu")  # 移到CPU节省GPU内存
+                feat_cache[idx] = cache_x  # 保持在GPU上
                 del cache_x
                 feat_idx[0] += 1
             else:
@@ -560,46 +560,36 @@ class WanVAE_(nn.Module):
         ## 对encode输入的x，按时间拆分为1、4、4、4....
         out_list = []
         
-        # 使用inference模式减少内存占用
-        with torch.inference_mode():
-            for i in range(iter_):
-                self._enc_conv_idx = [0]
-                
-                # 内存监控和清理
-                if i > 0:
-                    torch.cuda.empty_cache()  # 清理未使用的GPU内存
-                    print(f"🔍 GPU: Memory usage before encoder {i}: {torch.cuda.memory_allocated() / 1024 / 1024:.2f} MB")
-                
-                if i == 0:
-                    result = self.encoder(
-                        x[:, :, :1, :, :],
-                        feat_cache=self._enc_feat_map,
-                        feat_idx=self._enc_conv_idx)
-                elif any_end_frame and i== iter_ -1:
-                    result = self.encoder(
-                        x[:, :, -1:, :, :],
-                        feat_cache= None,
-                        feat_idx=self._enc_conv_idx)
-                else:
-                    result = self.encoder(
-                        x[:, :, 1 + 4 * (i - 1):1 + 4 * i, :, :],
-                        feat_cache=self._enc_feat_map,
-                        feat_idx=self._enc_conv_idx)
-                
-                # 立即移动结果到CPU以释放GPU内存
-                out_list.append(result.cpu())
-                del result  # 显式删除引用
+        for i in range(iter_):
+            self._enc_conv_idx = [0]
+            
+            # 内存监控和清理
+            if i > 0:
+                torch.cuda.empty_cache()  # 清理未使用的GPU内存
+                print(f"🔍 GPU: Memory usage before encoder {i}: {torch.cuda.memory_allocated() / 1024 / 1024:.2f} MB")
+            
+            if i == 0:
+                out_list.append(self.encoder(
+                    x[:, :, :1, :, :],
+                    feat_cache=self._enc_feat_map,
+                    feat_idx=self._enc_conv_idx))
+            elif any_end_frame and i== iter_ -1:
+                out_list.append(self.encoder(
+                    x[:, :, -1:, :, :],
+                    feat_cache= None,
+                    feat_idx=self._enc_conv_idx))
+            else:
+                out_list.append(self.encoder(
+                    x[:, :, 1 + 4 * (i - 1):1 + 4 * i, :, :],
+                    feat_cache=self._enc_feat_map,
+                    feat_idx=self._enc_conv_idx))
 
         self.clear_cache()
+        out = torch.cat(out_list, 2)
+        out_list = None
         
-        # 将CPU上的结果移回GPU并合并
-        device = x.device
-        out_list_gpu = [tensor.to(device) for tensor in out_list]
-        out = torch.cat(out_list_gpu, 2)
-        
-        # 清理临时变量
-        del out_list, out_list_gpu
-        torch.cuda.empty_cache()  # 最终清理
+        # 最终清理GPU内存
+        torch.cuda.empty_cache()
 
         mu, log_var = self.conv1(out).chunk(2, dim=1)
         if scale is not None:
@@ -624,44 +614,33 @@ class WanVAE_(nn.Module):
         x = self.conv2(z)
         out_list = []
         
-        # 使用inference模式减少内存占用
-        with torch.inference_mode():
-            for i in range(iter_):
-                self._conv_idx = [0]
+        for i in range(iter_):
+            self._conv_idx = [0]
+            
+            # 内存监控和清理
+            if i > 0:
+                torch.cuda.empty_cache()
+            
+            if i == 0:
+                out_list.append(self.decoder(
+                    x[:, :, i:i + 1, :, :],
+                    feat_cache=self._feat_map,
+                    feat_idx=self._conv_idx))
+            elif any_end_frame and i==iter_-1:
+                out_list.append(self.decoder(
+                    x[:, :, -1:, :, :],
+                    feat_cache=None ,
+                    feat_idx=self._conv_idx))
+            else:
+                out_list.append(self.decoder(
+                    x[:, :, i:i + 1, :, :],
+                    feat_cache=self._feat_map,
+                    feat_idx=self._conv_idx))
                 
-                # 内存监控和清理
-                if i > 0:
-                    torch.cuda.empty_cache()
-                
-                if i == 0:
-                    result = self.decoder(
-                        x[:, :, i:i + 1, :, :],
-                        feat_cache=self._feat_map,
-                        feat_idx=self._conv_idx)
-                elif any_end_frame and i==iter_-1:
-                    result = self.decoder(
-                        x[:, :, -1:, :, :],
-                        feat_cache=None ,
-                        feat_idx=self._conv_idx)
-                else:
-                    result = self.decoder(
-                        x[:, :, i:i + 1, :, :],
-                        feat_cache=self._feat_map,
-                        feat_idx=self._conv_idx)
-                
-                # 立即移动结果到CPU以释放GPU内存
-                out_list.append(result.cpu())
-                del result
-        
         self.clear_cache()
+        out = torch.cat(out_list, 2)
         
-        # 将CPU上的结果移回GPU并合并
-        device = x.device
-        out_list_gpu = [tensor.to(device) for tensor in out_list]
-        out = torch.cat(out_list_gpu, 2)
-        
-        # 清理临时变量
-        del out_list, out_list_gpu
+        # 最终清理GPU内存
         torch.cuda.empty_cache()
         return out
     
